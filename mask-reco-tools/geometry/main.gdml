@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE gdml [
+<!ENTITY properties SYSTEM "./properties.xml">
+<!ENTITY materials SYSTEM "./materials.xml">
+]>
+<gdml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://service-spi.web.cern.ch/service-spi/app/releases/GDML/schema/gdml.xsd">
+
+<define>
+  &properties;
+</define>
+
+<materials>
+  &materials;
+</materials>
+
+<solids>
+  <box lunit="mm" name="World_solid" x="3500" y="3500" z="3500"/>
+</solids>
+
+<structure>
+  <volume name="World">
+    <materialref ref="G4_AIR"/>
+    <solidref ref="World_solid"/>
+    <physvol name="vessel_ext_physical">
+      <file name="./meniscus_curved.gdml"/>
+      <rotation name="Rotation_0" unit="deg" x="0" y="-90" z="0"/>
+    </physvol>
+  </volume>
+</structure>
+
+<setup name="Default" version="1.0">
+  <world ref="World"/>
+</setup>
+
+</gdml>
+

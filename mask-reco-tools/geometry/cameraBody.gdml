@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!DOCTYPE gdml [
+<!ENTITY properties SYSTEM "./properties.xml">
+<!ENTITY materials SYSTEM "./materials.xml">
+]>
+<gdml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://service-spi.web.cern.ch/service-spi/app/releases/GDML/schema/gdml.xsd">
+
+<define>
+  &properties;
+</define>
+
+<materials>
+  &materials;
+</materials>
+
+<solids>
+  <box lunit="mm" name="cameraBodyExt_solid" x="177.600 + 1.000" y="177.600 + 1.000" z="21.550"/>
+  <box lunit="mm" name="cameraBodyInt_solid" x="177.600" y="177.600" z="21.550 - 1.000"/>
+  <subtraction name="cameraBody_solid">
+    <first ref="cameraBodyExt_solid"/>
+    <second ref="cameraBodyInt_solid"/>
+    <position name="cameraBody_pos" unit="mm" x="0.000" y="0.000" z="1.000/2"/>
+  </subtraction>
+  <opticalsurface finish="0" model="0" name="cameraBodySurf" type="1" value="1">
+    <property name="REFLECTIVITY" ref="cameraBodySurf_REFLECTIVITY"/>
+    <property name="EFFICIENCY" ref="cameraBodySurf_EFFICIENCY"/>
+  </opticalsurface>
+</solids>
+
+<structure>
+  <volume name="cameraBody">
+    <materialref ref="G4_Al6082"/>
+    <solidref ref="cameraBody_solid"/>
+  </volume>
+  <skinsurface name="cameraBody_Surface" surfaceproperty="cameraBodySurf">
+    <volumeref ref="cameraBody"/>
+  </skinsurface>
+</structure>
+
+
+
+<setup name="Default" version="1.0">
+  <world ref="cameraBody"/>
+</setup>
+
+</gdml>

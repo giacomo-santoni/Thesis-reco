@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!DOCTYPE gdml [
+<!ENTITY properties SYSTEM "./properties.xml">
+<!ENTITY materials SYSTEM "./materials.xml">
+]>
+<gdml xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="http://service-spi.web.cern.ch/service-spi/app/releases/GDML/schema/gdml.xsd">
+
+<define>
+  &properties;
+</define>
+
+<materials>
+  &materials;
+</materials>
+
+<solids>
+  <box lunit="mm" name="photoDetector_solid" x="102.400" y="102.400" z="1.000"/>
+  <opticalsurface finish="0" model="0" name="opSurfphotoDetector_solid" type="1" value="1">
+    <property name="REFLECTIVITY" ref="photoDetectorBodySurf_REFLECTIVITY"/>
+    <property name="EFFICIENCY" ref="photoDetectorBodySurf_EFFICIENCY"/>
+  </opticalsurface>
+</solids>
+
+<structure>
+  <volume name="photoDetector">
+    <materialref ref="Silicon"/>
+    <solidref ref="photoDetector_solid"/>
+    <auxiliary auxtype="Sensor" auxvalue="S14160-6050HS">
+      <auxiliary auxtype="cellcount" auxvalue="32"/>
+      <auxiliary auxtype="cellsize" auxunit="mm" auxvalue="3.000"/>
+      <auxiliary auxtype="celledge" auxunit="mm" auxvalue="0.200"/>
+    </auxiliary>
+  </volume>
+  <skinsurface name="photoDetectorSurface_volume" surfaceproperty="opSurfphotoDetector_solid">
+    <volumeref ref="photoDetector"/>
+  </skinsurface>
+</structure>
+
+
+
+<setup name="Default" version="1.0">
+  <world ref="photoDetector"/>
+</setup>
+
+</gdml>
+
