@@ -255,35 +255,35 @@ if __name__ == '__main__':
 
   # # g_centers_all_ev, g_amps_all_ev, g_recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, applyGradient=True)
   
-  # for i in range(len(selectedEvents)):
-  #   all_clusters_in_ev, all_amps_in_ev, y_pred, labels = Clustering(centers_all_ev[i], amps_all_ev[i])
-  #   all_initial_points = []
-  #   for c in range(len(all_clusters_in_ev)):
-  #     initialPoint = np.average(all_clusters_in_ev[c], axis = 0, weights = all_amps_in_ev[c])
-  #     all_initial_points.append(initialPoint)
-  #   all_curves_in_ev, all_inv_points, all_end_points = ClustersLPC(all_clusters_in_ev, all_amps_in_ev, labels, all_initial_points)
+  for i in range(len(selectedEvents)):
+     all_clusters_in_ev, all_amps_in_ev, y_pred, labels = Clustering(centers_all_ev[i], amps_all_ev[i])
+     all_initial_points = []
+     for c in range(len(all_clusters_in_ev)):
+       initialPoint = np.average(all_clusters_in_ev[c], axis = 0, weights = all_amps_in_ev[c])
+       all_initial_points.append(initialPoint)
+     all_curves_in_ev, all_inv_points, all_end_points = ClustersLPC(all_clusters_in_ev, all_amps_in_ev, labels, all_initial_points)
     
-  #   # all_curves_in_ev2 = NewClustersLPC(all_clusters_in_ev, all_amps_in_ev, all_inv_points)
+     all_curves_in_ev2 = NewClustersLPC(all_clusters_in_ev, all_amps_in_ev, all_inv_points)
 
-  #   fig1 = plt.figure()
-  #   ax = fig1.add_subplot(projection='3d')
-  #   scalesz = np.max(recodata_all_ev[i].shape) * 12 / 1.6
-  #   ax.set_xlim([-scalesz, scalesz])
-  #   ax.set_ylim([-scalesz, scalesz])
-  #   ax.set_zlim([-scalesz, scalesz])
-  #   ax.set_xlabel('x')
-  #   ax.set_ylabel('y')
-  #   ax.set_zlabel('z')
-  #   ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
-  #   for c in range(len(all_curves_in_ev)):
-  #     ax.scatter3D(all_curves_in_ev[c][:, 0], all_curves_in_ev[c][:,1], all_curves_in_ev[c][:,2], color = 'red')
-  #     # ax.scatter3D(all_curves_in_ev2[c][:, 0], all_curves_in_ev2[c][:,1], all_curves_in_ev2[c][:,2], color = 'darkgoldenrod')
-  #     # ax.scatter3D(all_curves_in_ev[c][0,0], all_curves_in_ev[c][0,1], all_curves_in_ev[c][0,2], color = 'darkorange')
-  #     # ax.scatter3D(all_inv_points[c][0],all_inv_points[c][1],all_inv_points[c][2], color = 'cyan')
-  #     # ax.scatter3D(all_curves_in_ev[c][len(all_curves_in_ev[c])-1,0], all_curves_in_ev[c][len(all_curves_in_ev[c])-1,1], all_curves_in_ev[c][len(all_curves_in_ev[c])-1,2], color = 'black')
-  #   plt.title(selectedEvents[i])
-  #   plt.legend()
-  #   plt.show()
+     fig1 = plt.figure()
+     ax = fig1.add_subplot(projection='3d')
+     scalesz = np.max(recodata_all_ev[i].shape) * 12 / 1.6
+     ax.set_xlim([-scalesz, scalesz])
+     ax.set_ylim([-scalesz, scalesz])
+     ax.set_zlim([-scalesz, scalesz])
+     ax.set_xlabel('x')
+     ax.set_ylabel('y')
+     ax.set_zlabel('z')
+     ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
+     for c in range(len(all_curves_in_ev)):
+       ax.scatter3D(all_curves_in_ev[c][:, 0], all_curves_in_ev[c][:,1], all_curves_in_ev[c][:,2], color = 'red')
+       ax.scatter3D(all_curves_in_ev2[c][:, 0], all_curves_in_ev2[c][:,1], all_curves_in_ev2[c][:,2], color = 'darkgoldenrod')
+       # ax.scatter3D(all_curves_in_ev[c][0,0], all_curves_in_ev[c][0,1], all_curves_in_ev[c][0,2], color = 'darkorange')
+       # ax.scatter3D(all_inv_points[c][0],all_inv_points[c][1],all_inv_points[c][2], color = 'cyan')
+       # ax.scatter3D(all_curves_in_ev[c][len(all_curves_in_ev[c])-1,0], all_curves_in_ev[c][len(all_curves_in_ev[c])-1,1], all_curves_in_ev[c][len(all_curves_in_ev[c])-1,2], color = 'black')
+     plt.title(selectedEvents[i])
+     plt.legend()
+     plt.show()
   
 
 
