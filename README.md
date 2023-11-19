@@ -6,3 +6,5 @@ for DBSCAN algorithm that identifies clusters:
 for LPC:
 * stepsize and bandwidth: chosen similar and similar to epsilon(?)
 and the cut on the voxel amplitude
+
+Sometimes we see that LPC algorithm stops before the end of the track. For this reason we need to find a way to make the LPC continue on the rest of the centers of the track. The idea is to exclude the points already analyzed by the LPC. To do so, the idea is to consider each LPC point and a fixed radius, then, if the centers are inside this radius, they are considered points already fit by the LPC (so called innerPoints), otherwise they are kept apart and then reprocessed with the LPC.
