@@ -189,35 +189,45 @@ def ExcludingPoints(all_clusters, all_amps, labels, geotree):
   return all_inner_points, all_inner_amps, all_point_masks
 
 def RemainingPoints(all_clusters, all_amps, all_inner_points, all_inner_amps, all_point_masks):
-  #print("all clusters: ", len(all_clusters))
   remaining_clusters = copy.deepcopy(all_inner_points)
   remaining_amps = copy.deepcopy(all_inner_amps)
   #per i centers non posso usare la funzione np.isin perchè considera uguali due punti che hanno coordinate in ordine diverso. per questo motivo nella funzione precedente ho riempito una matrice lunga quanto i punti del cluster che è 1 in corrispondenza degli innerPoints e 0 negli altri punti. Poi li trasformo in booleani e li inverto, in modo che poi la applico come maschera sulla matrice totale di punti e ci siano valori False in corrispondenza degli innerPoints e True negli altri.
+  remaining_points = []
   for cluster_index in range(len(all_inner_points)):
-    #print("inner pt: ", len(all_inner_points))
     all_point_masks[cluster_index] = np.invert(all_point_masks[cluster_index].astype(bool))
     remaining_clusters[cluster_index] = all_clusters[cluster_index+1][all_point_masks[cluster_index]]
-    remaining_clusters[cluster_index] = np.asarray(remaining_clusters[cluster_index])
+    for points in remaining_clusters[cluster_index]:
+      remaining_points.append(points)
+    #remaining_clusters[cluster_index] = np.asarray(remaining_clusters[cluster_index])
+    print(len(remaining_points))
     print("rem clusters points: ", len(remaining_clusters[cluster_index]))
 
+  list_remaining_amps = []
   for cluster_index, inner_amps in enumerate(all_inner_amps):
     amp_mask = np.isin(all_amps[cluster_index+1], inner_amps)#creo una matrice uguale a all_cluster[i] (n_points, 3) di True e False, dove True sono gli elementi che sono presenti in entrambi gli array, e False sono quelli che rimangono. Noi però stiamo lavorando con punti che hanno 3 colonne, per cui dobbiamo accertarci che tutte le colonne di un punto siano True. 
     remaining_amps[cluster_index] = all_amps[cluster_index+1][~amp_mask]#dato che a noi interessano i punti NON presenti in inner_points, invertiamo la matrice e così i True diventano i punti che non sono presenti in inner_points
     remaining_amps[cluster_index] = np.asarray(remaining_amps[cluster_index])
-    #print("rem amps: ", remaining_amps[cluster_index].shape)
-  return remaining_clusters, remaining_amps
+    for amps in remaining_amps[cluster_index]:
+      list_remaining_amps.append(amps)
+  return remaining_clusters, remaining_points, remaining_amps, list_remaining_amps
 
-def NewClustersLPC(remaining_clusters, remaining_amps):#, all_inner_points, all_inner_amps):
-  #remaining clusters ha sempre la stessa lunghezza di all_inner_points anche se dentro non c'è nessuno punto, vedi evento 1173
-  #print("nr rem clusters: ", len(remaining_clusters))
+def NewClustersLPC(remaining_points, list_remaining_amps, all_clusters,all_amps,labels):
+  if remaining_points:
+    new_remaining_clusters, new_remaining_amps, _, new_labels = Clustering(remaining_points, list_remaining_amps)
+  else: 
+    new_remaining_clusters = all_clusters
+    new_remaining_amps = all_amps
+    new_labels = labels
+  
   all_new_curves = []
-  for i in range(len(remaining_clusters)):
-    if len(remaining_clusters[i]) != 0:
-      new_curve = LPC(remaining_clusters[i], remaining_amps[i])
+  for i in range(len(new_remaining_clusters)):
+    if new_labels[i] != -1:
+      new_curve = LPC(new_remaining_clusters[i], new_remaining_amps[i])
       new_curve = np.asarray(new_curve)
-    else: new_curve = np.zeros((2,3))
-    all_new_curves.append(new_curve)
+      all_new_curves.append(new_curve)
+  print("new_curves: ", len(all_new_curves))
   return all_new_curves
+
 
 # def PlotClusters(events, fname1, fname2, geotree, applyGradient):
   # centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(events, fname1, fname2, geotree, applyGradient)
@@ -256,8 +266,8 @@ if __name__ == '__main__':
   
   eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
   # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
-  #selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
-  selectedEvents = [0,1,2,4,5,6,7,8,9]
+  selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
+  #selectedEvents = [0,1,2,4,5,6,7,8,9]
 
   defs = {}
   defs['voxel_size'] = 12
@@ -274,7 +284,7 @@ if __name__ == '__main__':
   # print(pca_results)
 
   # # g_centers_all_ev, g_amps_all_ev, g_recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, applyGradient=True)
-  centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl3, fpkl2, geom.fiducial, applyGradient=False)
+  centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, geom.fiducial, applyGradient=False)
 
 
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
@@ -291,9 +301,9 @@ if __name__ == '__main__':
 
     all_curves_in_ev = ClustersLPC(all_clusters_in_ev, all_amps_in_ev, labels)
 
-    all_remaining_clusters, all_remaining_amps = RemainingPoints(all_clusters_in_ev, all_amps_in_ev, all_inner_points, all_inner_amps, all_point_masks)
+    all_remaining_clusters, all_remaining_points, all_remaining_amps, list_all_remaining_amps = RemainingPoints(all_clusters_in_ev, all_amps_in_ev, all_inner_points, all_inner_amps, all_point_masks)
 
-    new_all_curves_in_ev = NewClustersLPC(all_remaining_clusters, all_remaining_amps)
+    new_all_curves_in_ev = NewClustersLPC(all_remaining_points, list_all_remaining_amps, all_clusters_in_ev, all_amps_in_ev, labels)
     
     print("evento: ", selectedEvents[i])
     
@@ -309,13 +319,14 @@ if __name__ == '__main__':
     ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
     for c in range(len(all_curves_in_ev)):
       ax.scatter3D(all_curves_in_ev[c][:, 0], all_curves_in_ev[c][:,1], all_curves_in_ev[c][:,2], color = 'red')
-      ax.scatter3D(new_all_curves_in_ev[c][:, 0], new_all_curves_in_ev[c][:,1], new_all_curves_in_ev[c][:,2], color = 'blue')
       # ax.scatter3D(all_clusters_in_ev[0][:,0], all_clusters_in_ev[0][:,1], all_clusters_in_ev[0][:,2], color = 'yellow')
       ax.scatter3D(all_remaining_clusters[c][:,0],all_remaining_clusters[c][:,1],all_remaining_clusters[c][:,2], color = 'darkorange')
       ax.scatter3D(all_inner_points[c][:, 0], all_inner_points[c][:, 1], all_inner_points[c][:, 2], color = 'forestgreen')
-      #ax.scatter3D(all_curves_in_ev[0][0,0], all_curves_in_ev[0][0,1], all_curves_in_ev[0][0,2], color = 'cyan')
+    # ax.scatter3D(all_curves_in_ev[0][0,0], all_curves_in_ev[0][0,1], all_curves_in_ev[0][0,2], color = 'cyan')
     # ax.scatter3D(all_inv_points[c][0],all_inv_points[c][1],all_inv_points[c][2], color = 'cyan')
     # ax.scatter3D(all_curves_in_ev[c][len(all_curves_in_ev[c])-1,0], all_curves_in_ev[c][len(all_curves_in_ev[c])-1,1], all_curves_in_ev[c][len(all_curves_in_ev[c])-1,2], color = 'black')
+    for new_c in range(len(new_all_curves_in_ev)):
+      ax.scatter3D(new_all_curves_in_ev[new_c][:, 0], new_all_curves_in_ev[new_c][:,1], new_all_curves_in_ev[new_c][:,2], color = 'blue')
     plt.title(selectedEvents[i])
     plt.legend()
   plt.show()
