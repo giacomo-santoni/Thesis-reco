@@ -161,8 +161,34 @@ def is_point_in_array(point, array):
     return any(np.all(point == i) for i in array)
 
 def ExcludingPoints(all_clusters, all_amps, labels, geotree):
+  # all_curves = ClustersLPC(all_clusters, all_amps, labels)
+  # R = 5.5*(geotree.voxel_size)
+  # all_inner_points = []
+  # all_inner_amps = []
+  # all_point_masks = []
+  # for i in range(len(all_curves)):
+  #   innerPoints = []
+  #   innerAmps = []
+  #   print(all_clusters[i+1].shape)
+  #   point_mask = np.zeros((len(all_clusters[i+1])))
+  #   for lpc in all_curves[i]:
+  #     for j,p in enumerate(all_clusters[i+1]):#faccio +1 perchè in all_clusters il primo elemento è sempre il cluster che contiene il noise. Dato che sui punti del noise non facciamo la lpc, non ha senso includerli in questa operazione. Non mi da errore perchè tanto la i sta ciclando su all_curves che è 1 dimensione più corto.
+  #       diff = p - lpc
+  #       distance = np.abs(np.sqrt(diff[0]**2 + diff[1]**2 + diff[2]**2))
+  #       if distance < R:
+  #         if not is_point_in_array(p,innerPoints):
+  #           innerPoints.append(p)
+  #           innerAmps.append(all_amps[i+1][j])
+  #         point_mask[j] = 1
+  #   innerPoints = np.asarray(innerPoints)
+  #   print(innerPoints.shape)
+  #   innerAmps = np.asarray(innerAmps)
+  #   all_inner_points.append(innerPoints)
+  #   all_inner_amps.append(innerAmps)
+  #   all_point_masks.append(point_mask)
+
   all_curves = ClustersLPC(all_clusters, all_amps, labels)
-  R = 5.5*(geotree.voxel_size)
+  R = 7*(geotree.voxel_size)
   all_inner_points = []
   all_inner_amps = []
   all_point_masks = []
@@ -171,15 +197,20 @@ def ExcludingPoints(all_clusters, all_amps, labels, geotree):
     innerAmps = []
     print(all_clusters[i+1].shape)
     point_mask = np.zeros((len(all_clusters[i+1])))
-    for lpc in all_curves[i]:
-      for j,p in enumerate(all_clusters[i+1]):#faccio +1 perchè in all_clusters il primo elemento è sempre il cluster che contiene il noise. Dato che sui punti del noise non facciamo la lpc, non ha senso includerli in questa operazione. Non mi da errore perchè tanto la i sta ciclando su all_curves che è 1 dimensione più corto.
+    for j,p in enumerate(all_clusters[i+1]):#faccio +1 perchè in all_clusters il primo elemento è sempre il cluster che contiene il noise. Dato che sui punti del noise non facciamo la lpc, non ha senso includerli in questa operazione. Non mi da errore perchè tanto la i sta ciclando su all_curves che è 1 dimensione più corto.
+      all_distances = []
+      for lpc in all_curves[i]:
         diff = p - lpc
         distance = np.abs(np.sqrt(diff[0]**2 + diff[1]**2 + diff[2]**2))
-        if distance < R:
-          if not is_point_in_array(p,innerPoints):
-            innerPoints.append(p)
-            innerAmps.append(all_amps[i+1][j])
-          point_mask[j] = 1
+        all_distances.append(distance)
+      bool_distances = np.asarray(all_distances) < R
+      # print(bool_distances)
+      # print(np.count_nonzero(bool_distances))
+      if np.count_nonzero(bool_distances) >= 3:
+        if not is_point_in_array(p,innerPoints):
+          innerPoints.append(p)
+          innerAmps.append(all_amps[i+1][j])
+        point_mask[j] = 1
     innerPoints = np.asarray(innerPoints)
     print(innerPoints.shape)
     innerAmps = np.asarray(innerAmps)
@@ -266,7 +297,7 @@ if __name__ == '__main__':
   
   eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
   # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
-  selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
+  selectedEvents = [eventNumbers[0]]#,eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
   #selectedEvents = [0,1,2,4,5,6,7,8,9]
 
   defs = {}
