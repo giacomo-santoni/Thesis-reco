@@ -151,20 +151,20 @@ def LPC(centers, amps):
   #plt.show()
   return curve, inversionPoint, endPoint, nrLPCpoints
 
-def ClustersLPC(clusters, amps, labels):#, startPoints):
+def ClustersLPC(clusters, amps, labels):
   all_curves = []
   all_inv_points = []
   all_end_points = []
-  all_nrLPCpoints = []
+  all_nrLPC_points = []
   for i in range(len(clusters)):
     if labels[i] != -1:
-      curve, inversionPoint, endPoint, nrLPCpoints = LPC(clusters[i], amps[i])#, startPoints[i])
+      curve, inversionPoint, endPoint, nrLPCpoints = LPC(clusters[i], amps[i])
       curve = np.asarray(curve)
       all_curves.append(curve)
       all_inv_points.append(inversionPoint)
       all_end_points.append(endPoint)
-      all_nrLPCpoints.append(nrLPCpoints)
-  return all_curves, all_inv_points, all_end_points, all_nrLPCpoints
+      all_nrLPC_points.append(nrLPCpoints)
+  return all_curves, all_inv_points, all_end_points, all_nrLPC_points
 
 def is_point_in_array(point, array):
     return any(np.all(point == i) for i in array)
@@ -202,23 +202,19 @@ def RemainingPoints(all_clusters, all_amps, all_inner_points, all_inner_amps, al
   remaining_clusters = copy.deepcopy(all_inner_points)
   remaining_amps = copy.deepcopy(all_inner_amps)
   # per i centers non posso usare la funzione np.isin perchè considera uguali due punti che hanno coordinate in ordine diverso. per questo motivo nella funzione precedente ho riempito una matrice lunga quanto i punti del cluster che è 1 in corrispondenza degli innerPoints e 0 negli altri punti. Poi li trasformo in booleani e li inverto, in modo che poi la applico come maschera sulla matrice totale di punti e ci siano valori False in corrispondenza degli innerPoints e True negli altri.
-  remaining_points = []
   for cluster_index in range(len(all_inner_points)):
     all_point_mask[cluster_index] = np.invert(all_point_mask[cluster_index].astype(bool))
     remaining_clusters[cluster_index] = all_clusters[cluster_index+1][all_point_mask[cluster_index]]
-    for points in remaining_clusters[cluster_index]:
-      remaining_points.append(points)
+    remaining_points = [points for points in remaining_clusters[cluster_index]]
 
-  list_remaining_amps = []
   for cluster_index, inner_amps in enumerate(all_inner_amps):
     amp_mask = np.isin(all_amps[cluster_index+1], inner_amps)#creo una matrice uguale a all_cluster[i] (n_points, 3) di True e False, dove True sono gli elementi che sono presenti in entrambi gli array, e False sono quelli che rimangono. Noi però stiamo lavorando con punti che hanno 3 colonne, per cui dobbiamo accertarci che tutte le colonne di un punto siano True. 
     remaining_amps[cluster_index] = all_amps[cluster_index+1][~amp_mask]#dato che a noi interessano i punti NON presenti in inner_points, invertiamo la matrice e così i True diventano i punti che non sono presenti in inner_points
     remaining_amps[cluster_index] = np.asarray(remaining_amps[cluster_index])
-    for amps in remaining_amps[cluster_index]:
-      list_remaining_amps.append(amps)
+    list_remaining_amps = [amps for amps in remaining_amps[cluster_index]]
   return remaining_clusters, remaining_points, remaining_amps, list_remaining_amps
 
-def NewClustersLPC(remaining_points, list_remaining_amps, all_clusters,all_amps,labels):
+def NewClustersLPC(remaining_points, list_remaining_amps, all_clusters, all_amps,labels):
   if remaining_points:
     new_remaining_clusters, new_remaining_amps, _, new_labels = Clustering(remaining_points, list_remaining_amps)
   else: 
@@ -229,21 +225,23 @@ def NewClustersLPC(remaining_points, list_remaining_amps, all_clusters,all_amps,
   all_new_curves = []
   new_all_inv_points = []
   new_all_end_points = []
-  new_all_nrLPCpoints = []
+  new_all_nrLPC_points = []
   for i in range(len(new_remaining_clusters)):
     if new_labels[i] != -1:
-      new_curve,new_invPoint,new_endPoint,new_nrLPCpoints = LPC(new_remaining_clusters[i], new_remaining_amps[i])
+      new_curve,new_invPoint,new_endPoint, new_nrLPCpoints = LPC(new_remaining_clusters[i], new_remaining_amps[i])#,new_nrLPC_coordinates
       new_curve = np.asarray(new_curve)
       all_new_curves.append(new_curve)
       new_all_inv_points.append(new_invPoint)
       new_all_end_points.append(new_endPoint)
-      new_all_nrLPCpoints.append(new_nrLPCpoints)
-  return all_new_curves, new_all_inv_points, new_all_end_points, new_all_nrLPCpoints
+      new_all_nrLPC_points.append(new_nrLPCpoints)
+  return all_new_curves, new_all_inv_points, new_all_end_points, new_all_nrLPC_points
 
-def LPCDistances(all_curves, all_inv_points):
+def LPCDistances(all_curves, all_inv_points, all_nrLPC_points):
   all_distances_to_end = []
   all_distances_to_inv = []
   all_distances_inv_to_end = []
+  all_sorted_points = []
+  all_nrLPC_coordinates = []
   for i in range(len(all_curves)):
     distances_to_inv = []
     distances_to_end = []
@@ -256,8 +254,9 @@ def LPCDistances(all_curves, all_inv_points):
         inversion_index = lpc+1
         distances_to_inv.append(distance)
         distances_to_inv_rev = distances_to_inv[::-1]
+        inv_to_origin_points = all_curves[i][0:inversion_index+1][::-1]
         break
-    all_distances_to_inv.append(distances_to_inv)#serve perchè posso avere più clusters di punti LPC in un evento
+    all_distances_to_inv.append(distances_to_inv)#serve perchè posso avere più clusters di punti LPC in un evento    
 
     for lpc in range(inversion_index+1,len(all_curves[i])):
       if lpc < len(all_curves[i])-1:
@@ -269,29 +268,35 @@ def LPCDistances(all_curves, all_inv_points):
         else: 
           distance = all_curves[i][lpc+1] - all_curves[i][lpc]
           distances_to_end.append(distance)
-      
+        origin_to_end_points = all_curves[i][inversion_index+1:len(all_curves[i])]
+
     distance_inv_to_end = np.concatenate((distances_to_inv_rev, distances_to_end))
+    sorted_points = np.concatenate((inv_to_origin_points, origin_to_end_points))
+    nrLPC_coordinates = {k:v for (k,v) in zip(all_nrLPC_points[i], sorted_points)}#è un DICT!!
+    print(nrLPC_coordinates)
     all_distances_to_end.append(distances_to_end)
     all_distances_inv_to_end.append(distance_inv_to_end)
-  return all_distances_to_inv, all_distances_to_end, all_distances_inv_to_end
+    all_sorted_points.append(sorted_points)
+    all_nrLPC_coordinates.append(nrLPC_coordinates)
+  return all_distances_to_inv, all_distances_to_end, all_distances_inv_to_end, all_nrLPC_coordinates#, all_inversion_indices
 
-def ConnectingLPCclusters(clusters, amps, remaining_points, list_remaining_amps, labels):#?????????
-  all_curves, all_inv_points, all_end_points,_ = ClustersLPC(clusters, amps, labels)
-  all_new_curves, new_all_inv_points, new_all_end_points,_ = NewClustersLPC(remaining_points, list_remaining_amps, clusters, amps, labels)
+# def DistancesAllLPC(all_curves, all_inv_points, new_all_curves, new_all_inv_points):
+#   _, _, all_distances_inv_to_end = LPCDistances(all_curves, all_inv_points)
+#   _, _, new_all_distances_inv_to_end = LPCDistances(new_all_curves, new_all_inv_points)
+
+#   return 1
+
+def ConnectingLPCclusters(all_curves, all_inv_points, all_end_points, new_all_curves, new_all_inv_points, new_all_end_points):#?????????
   all_clusters_all_diffs = []
   for c in range(len(all_curves)):
-    all_diffs = []
-    for new_c in range(len(all_new_curves)):
+    for new_c in range(len(new_all_curves)):
+      all_diffs = []
       diff1 = new_all_end_points[new_c] - all_end_points[c]
-      all_diffs.append(diff1)
       diff2 = new_all_end_points[new_c] - all_inv_points[c]
-      all_diffs.append(diff2)
       diff3 = new_all_inv_points[new_c] - all_inv_points[c]
-      all_diffs.append(diff3)
       diff4 = new_all_inv_points[new_c] - all_end_points[c]
-      all_diffs.append(diff4)
-    all_clusters_all_diffs.append(all_diffs)
-  print(len(all_clusters_all_diffs))
+      all_diffs = [diff1,diff2,diff3,diff4]
+      all_clusters_all_diffs.append(all_diffs)
   
   all_clusters_all_distances = []
   for all_diffs in all_clusters_all_diffs:
@@ -299,9 +304,7 @@ def ConnectingLPCclusters(clusters, amps, remaining_points, list_remaining_amps,
     for diff in all_diffs:
       distance = np.abs(np.sqrt(diff[0]**2 + diff[1]**2 + diff[2]**2))
       all_distances.append(distance)
-    all_distances = np.asarray(all_distances)
     all_clusters_all_distances.append(all_distances)
-  print(len(all_clusters_all_distances))
 
   all_connections = []
   for i in range(len(all_clusters_all_distances)):
@@ -309,23 +312,27 @@ def ConnectingLPCclusters(clusters, amps, remaining_points, list_remaining_amps,
     index_matching = all_clusters_all_distances[i].index(min_distance)
     connection = all_clusters_all_diffs[i][index_matching]
     all_connections.append(connection)
-
+ 
   return index_matching, all_connections
 
 def Angles(all_curves, all_inv_points):
-  _, _, all_distances_inv_to_end = LPCDistances(all_curves, all_inv_points)
+  _, _, all_distances_inv_to_end, all_nrLPC_coordinates = LPCDistances(all_curves, all_inv_points, all_nrLPC_points)
   all_scalar_products = []
+  all_LPC_vertex_nrpoints = []
+  #all_vertex_indices = []
   for i in range(len(all_distances_inv_to_end)):
     scalar_products = []
     for j in range(len(all_distances_inv_to_end[i])):
       if j < (len(all_distances_inv_to_end[i])-1):
-        scalar_product = np.dot(all_distances_inv_to_end[i][j], all_distances_inv_to_end[i][j+1])#/(np.linalg.norm(v1_u)*np.linalg.norm(v2_u))
+        scalar_prod = np.dot(all_distances_inv_to_end[i][j], all_distances_inv_to_end[i][j+1])#/(np.linalg.norm(v1_u)*np.linalg.norm(v2_u))
         norm_product = np.linalg.norm(all_distances_inv_to_end[i][j])*np.linalg.norm(all_distances_inv_to_end[i][j+1])
-        quantity_to_plot = norm_product*(1 - np.abs(scalar_product/norm_product))
+        quantity_to_plot = norm_product*(1 - np.abs(scalar_prod/norm_product))
       scalar_products.append(quantity_to_plot)
+      lpc_point_angles = dict(zip(all_nrLPC_coordinates[i].keys(), scalar_products))
+    LPC_vertex_nrpoint = int([k for k, v in lpc_point_angles.items() if v == np.max(scalar_products)][0])
+    all_LPC_vertex_nrpoints.append(LPC_vertex_nrpoint)
     all_scalar_products.append(scalar_products)
-    print("scalar prod: ",len(all_scalar_products[i]))
-  return all_scalar_products
+  return all_scalar_products, all_LPC_vertex_nrpoints#, all_vertex_indices
 
 # def PlotClusters(events, fname1, fname2, geotree, applyGradient):
   # centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(events, fname1, fname2, geotree, applyGradient)
@@ -357,7 +364,6 @@ def Angles(all_curves, all_inv_points):
   #   plt.title(events[i])
   #   plt.legend()
   # plt.show()
-  
 
 if __name__ == '__main__':
   ###example structure, fill the gaps
@@ -365,7 +371,7 @@ if __name__ == '__main__':
   eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
   # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
   selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
-  #selectedEvents = [0,1,2,4,5,6,7,8,9]
+  # selectedEvents = [0,1,2,4,5,6,7,8,9]
 
   defs = {}
   defs['voxel_size'] = 12
@@ -381,7 +387,7 @@ if __name__ == '__main__':
   # pca_results = compute_pca(data_masked, geom.fiducial, 100, plot=True)
   # print(pca_results)
 
-  # # g_centers_all_ev, g_amps_all_ev, g_recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, applyGradient=True)
+  # g_centers_all_ev, g_amps_all_ev, g_recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, applyGradient=True)
   centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, geom.fiducial, applyGradient=False)
 
 
@@ -394,22 +400,18 @@ if __name__ == '__main__':
     #   initialPoint = np.average(all_clusters_in_ev[c], axis = 0, weights = all_amps_in_ev[c])
     #   all_initial_points.append(initialPoint)
 
+    all_curves_in_ev, all_inv_points, all_end_points, all_nrLPC_points = ClustersLPC(all_clusters_in_ev, all_amps_in_ev, labels)
 
     all_inner_points, all_inner_amps, all_point_mask = ExcludingPoints(all_clusters_in_ev, all_amps_in_ev,labels, geom.fiducial)
-
-    all_curves_in_ev, all_inv_points, all_end_points, all_nrLPCpoints = ClustersLPC(all_clusters_in_ev, all_amps_in_ev, labels)
-
     all_remaining_clusters, all_remaining_points, all_remaining_amps, list_all_remaining_amps = RemainingPoints(all_clusters_in_ev, all_amps_in_ev, all_inner_points, all_inner_amps, all_point_mask)
+    new_all_curves_in_ev, new_all_inv_points, new_all_end_points, new_all_nrLPC_points= NewClustersLPC(all_remaining_points, list_all_remaining_amps, all_clusters_in_ev, all_amps_in_ev, labels)
 
-    new_all_curves_in_ev, new_all_inv_points, new_all_end_points, new_all_nrLPCpoints = NewClustersLPC(all_remaining_points, list_all_remaining_amps, all_clusters_in_ev, all_amps_in_ev, labels)
+    all_distances_to_inv, all_distances_to_end, all_distances_inv_to_end, all_nrLPC_coordinates = LPCDistances(all_curves_in_ev, all_inv_points, all_nrLPC_points)
+    new_all_distances_to_inv, new_all_distances_to_end, new_all_distances_inv_to_end, new_all_nrLPC_coordinates = LPCDistances(new_all_curves_in_ev, new_all_inv_points, new_all_nrLPC_points)
 
-    all_distances_to_inv, all_distances_to_end, _ = LPCDistances(all_curves_in_ev, all_inv_points)
-   
-    new_all_distances_to_inv, new_all_distances_to_end, _ = LPCDistances(new_all_curves_in_ev, new_all_inv_points)
+    #index_matching, all_connections = ConnectingLPCclusters(all_curves_in_ev, all_inv_points, all_end_points, new_all_curves_in_ev, new_all_inv_points, new_all_end_points)
 
-    # index_matching, all_connections = ConnectingLPCclusters(all_clusters_in_ev, all_amps_in_ev, all_remaining_points, list_all_remaining_amps, labels)
-
-    all_scalar_products = Angles(all_curves_in_ev, all_inv_points)
+    all_scalar_products, all_LPC_vertex_nrpoints = Angles(all_curves_in_ev, all_inv_points)
 
     # print("indice per la distanza minima: ", index_matching)
     # print("vettori di collegamento: ", all_connections)
@@ -433,7 +435,7 @@ if __name__ == '__main__':
     ax.quiver(all_curves_in_ev[0][0][0],all_curves_in_ev[0][0][1],all_curves_in_ev[0][0][2], all_distances_to_end[0][0][0], all_distances_to_end[0][0][1], all_distances_to_end[0][0][2], color='red')
     ax.quiver(all_curves_in_ev[0][5][0],all_curves_in_ev[0][5][1],all_curves_in_ev[0][5][2], all_distances_to_end[0][1][0], all_distances_to_end[0][1][1], all_distances_to_end[0][1][2], color='cyan')
     ax.quiver(all_curves_in_ev[0][6][0],all_curves_in_ev[0][6][1],all_curves_in_ev[0][6][2], all_distances_to_end[0][2][0], all_distances_to_end[0][2][1], all_distances_to_end[0][2][2], color='darkorange')
-    # ax.quiver(all_curves_in_ev[0][7][0],all_curves_in_ev[0][7][1],all_curves_in_ev[0][7][2], all_distances_to_end[0][3][0], all_distances_to_end[0][3][1], all_distances_to_end[0][3][2], color='blue')
+  #   ax.quiver(all_curves_in_ev[0][7][0],all_curves_in_ev[0][7][1],all_curves_in_ev[0][7][2], all_distances_to_end[0][3][0], all_distances_to_end[0][3][1], all_distances_to_end[0][3][2], color='blue')
   #   ax.quiver(all_curves_in_ev[0][8][0],all_curves_in_ev[0][8][1],all_curves_in_ev[0][8][2], all_distances_to_end[0][4][0], all_distances_to_end[0][4][1], all_distances_to_end[0][4][2], color='grey')
   #   ax.quiver(all_curves_in_ev[0][9][0],all_curves_in_ev[0][9][1],all_curves_in_ev[0][9][2], all_distances_to_end[0][5][0], all_distances_to_end[0][5][1], all_distances_to_end[0][5][2], color='teal')
     
@@ -455,35 +457,39 @@ if __name__ == '__main__':
   #   ax.quiver(new_all_curves_in_ev[1][6][0],new_all_curves_in_ev[1][6][1],new_all_curves_in_ev[1][6][2], new_all_distances_to_end[1][2][0], new_all_distances_to_end[1][2][1], new_all_distances_to_end[1][2][2], color='deeppink')
   #   ax.quiver(new_all_curves_in_ev[1][7][0],new_all_curves_in_ev[1][7][1],new_all_curves_in_ev[1][7][2], new_all_distances_to_end[1][3][0], new_all_distances_to_end[1][3][1], new_all_distances_to_end[1][3][2], color='olive')
 
-    #ax.quiver(*new_all_inv_points[i], all_connections[0][0],all_connections[0][1],all_connections[0][2])
-
     for c in range(len(all_curves_in_ev)):
-      print(len(all_nrLPCpoints[c]))
+      #print(len(all_nrLPC_coordinates[c]))
       ax.scatter3D(all_curves_in_ev[c][:, 0], all_curves_in_ev[c][:,1], all_curves_in_ev[c][:,2], color = 'red')#allLPCpoints
+      #ax.scatter3D(all_sorted_points[c][:, 0], all_sorted_points[c][:,1], all_sorted_points[c][:,2], color = 'red')#allLPCpoints
     #   # ax.scatter3D(all_curves_in_ev[c][0, 0], all_curves_in_ev[c][0,1], all_curves_in_ev[c][0,2], color = 'darkorange')#firstLPCpoints
-    #   # ax.scatter3D(all_remaining_clusters[c][:,0],all_remaining_clusters[c][:,1],all_remaining_clusters[c][:,2], color = 'darkorange')#remainingcenters
-    #   # ax.scatter3D(all_inner_points[c][:, 0], all_inner_points[c][:, 1], all_inner_points[c][:, 2], color = 'forestgreen')#alreadypassedcenters
+      ax.scatter3D(all_remaining_clusters[c][:,0],all_remaining_clusters[c][:,1],all_remaining_clusters[c][:,2], color = 'darkorange')#remainingcenters
+      ax.scatter3D(all_inner_points[c][:, 0], all_inner_points[c][:, 1], all_inner_points[c][:, 2], color = 'forestgreen')#alreadypassedcenters
       ax.scatter3D(all_end_points[c][0],all_end_points[c][1],all_end_points[c][2], color = 'blue')#endLPCpoints
       ax.scatter3D(all_inv_points[c][0],all_inv_points[c][1],all_inv_points[c][2], color = 'cyan')#inversionLPCpoints
+      ax.scatter3D(list(all_nrLPC_coordinates[c].values())[all_LPC_vertex_nrpoints[c]][0],list(all_nrLPC_coordinates[c].values())[all_LPC_vertex_nrpoints[c]][1],list(all_nrLPC_coordinates[c].values())[all_LPC_vertex_nrpoints[c]][2], color = 'blue', marker = 'D')
+      #ax.quiver(*all_end_points[c], all_connections[0][0],all_connections[0][1],all_connections[0][2])
+      # ax.quiver(*all_end_points[1], all_connections[3][0],all_connections[3][1],all_connections[3][2])
+      # ax.quiver(*new_all_end_points[1], all_connections[2][0],all_connections[2][1],all_connections[2][2])
+      # ax.quiver(*all_inv_points[0], all_connections[1][0],all_connections[1][1],all_connections[1][2])
+      # ax.quiver(*all_end_points[0], all_connections[0][0],all_connections[0][1],all_connections[0][2])
     for new_c in range(len(new_all_curves_in_ev)):
       ax.scatter3D(new_all_curves_in_ev[new_c][:, 0], new_all_curves_in_ev[new_c][:,1], new_all_curves_in_ev[new_c][:,2], color = 'blue')
       ax.scatter3D(new_all_curves_in_ev[new_c][0, 0], new_all_curves_in_ev[new_c][0,1], new_all_curves_in_ev[new_c][0,2], color = 'black')
       # ax.scatter3D(new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1, 0], new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1,1], new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1,2], color = 'blue')
       ax.scatter3D(new_all_end_points[new_c][0],new_all_end_points[new_c][1],new_all_end_points[new_c][2], color = 'blue')
       ax.scatter3D(new_all_inv_points[new_c][0],new_all_inv_points[new_c][1],new_all_inv_points[new_c][2], color = 'cyan')
+
+      
     
     fig2 = plt.figure()
     for c in range(len(all_curves_in_ev)):
       plt.xlabel("lpc point number")
-      plt.ylabel("1-|cos(Phi)|")
-      plt.scatter(all_nrLPCpoints[c],all_scalar_products[c])
+      plt.ylabel("1-|cos$\Phi$|")
+      plt.scatter(all_nrLPC_coordinates[c].keys(),all_scalar_products[c])
     
     plt.title(selectedEvents[i])
     plt.legend()
     plt.show()
-
-
-
 
   """only amps"""
   # PlotClusters(selectedEvents, fpkl1, fpkl2, geom.fiducial, applyGradient=False)
