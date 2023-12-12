@@ -162,7 +162,7 @@ def LPC(centers, amps):
   origin_to_end = curve[inv_index+1:]
   sorted_curve = np.concatenate((inv_to_origin, origin_to_end), axis=0)
   LPCindex_point = {k:v for (k,v) in zip(range(len(curve)),sorted_curve)}#dict che contiene indice dei punti lpc (chiavi) e i punti lpc (valori)
-  print(LPCindex_point)
+  # print(LPCindex_point)
   return sorted_curve, inversionPoint, endPoint, LPCindex_point
 
 def ClustersLPC(clusters, amps, labels):
@@ -220,7 +220,6 @@ def RemainingPoints(all_clusters, all_amps, all_inner_points, all_inner_amps, al
   for cluster_index in range(len(all_inner_points)):
     all_point_mask[cluster_index] = np.invert(all_point_mask[cluster_index].astype(bool))
     remaining_clusters[cluster_index] = all_clusters[cluster_index+1][all_point_mask[cluster_index]]
-    labels_remclusters = {k:v for (k,v) in zip(range(len(remaining_clusters[cluster_index])), remaining_clusters[cluster_index])}
     for points in remaining_clusters[cluster_index]:
       remaining_points.append(points)
 
@@ -231,7 +230,9 @@ def RemainingPoints(all_clusters, all_amps, all_inner_points, all_inner_amps, al
     remaining_amps[cluster_index] = np.asarray(remaining_amps[cluster_index])
     for amps in remaining_amps[cluster_index]:
       list_remaining_amps.append(amps)
-  print('rem: ', labels_remclusters)
+  print(len(remaining_clusters))
+  labels_remclusters = {k:v for (k,v) in zip(range(len(remaining_clusters)), remaining_clusters)}
+  #print('rem: ', labels_remclusters)
   return remaining_clusters, remaining_points, remaining_amps, list_remaining_amps
 
 def NewClustersLPC(remaining_points, list_remaining_amps, all_clusters, all_amps,labels):
@@ -241,7 +242,7 @@ def NewClustersLPC(remaining_points, list_remaining_amps, all_clusters, all_amps
     new_remaining_clusters = all_clusters
     new_remaining_amps = all_amps
     new_labels = labels
-  
+
   all_new_curves = []
   new_all_inv_points = []
   new_all_end_points = []
@@ -304,7 +305,6 @@ def ConnectingLPCclusters(all_clusters, remaining_points, all_curves, all_inv_po
         diff4 = new_all_inv_points[new_c] - all_end_points[c]
         all_diffs = [diff1,diff2,diff3,diff4]
         arrival_points = [new_all_end_points[new_c], new_all_end_points[new_c], new_all_inv_points[new_c], new_all_inv_points[new_c]]
-        #print(arrival_points)
         index_coord_dict = {k:v for (k,v) in zip(np.arange(len(arrival_points)),arrival_points)}
         all_index_coord_dict.append(index_coord_dict)
         all_clusters_all_diffs.append(all_diffs)
@@ -335,30 +335,34 @@ def ConnectingLPCclusters(all_clusters, remaining_points, all_curves, all_inv_po
     #print('point: ', connection_point)
     connection = all_clusters_all_diffs[i][index_matching]
     all_connection_points.append(connection_point)
-  #print("nr di dist: ", len(all_connection_points))
+  print("nr di dist: ", len(all_connection_points))
   return all_connection_points
 
+def is_inversion_point(connection_point, inv_point):
+  if np.array_equal(connection_point, inv_point):
+    return True
+  
+def is_end_point(connection_point, end_point):
+  if np.array_equal(connection_point, end_point):
+    return True
+
 #DA SISTEMARE  
-def MergingLPCPoints(all_connection_points, new_all_end_points, new_all_inv_points, new_all_curves):
-  for i in range(len(new_all_curves)): 
-    # print('list: ', new_all_curves[i])
-    # print('new inv: ', new_all_inv_points[i])
-    # print('new end: ', new_all_end_points[i])
-    inversion_index = find_index_point(new_all_curves[i], new_all_inv_points[i])
-    end_index = find_index_point(new_all_curves[i], new_all_end_points[i])
-    # print('inv index: ', inversion_index)
-    # print('end index: ', end_index)
-    if np.all(all_connection_points[i]) == np.all(new_all_end_points[i]):
-      inv_to_origin = new_all_curves[i][0:inversion_index+1][::-1]
-      origin_to_end = new_all_curves[i][inversion_index:]
-      # print('inv_to_ori: ', inv_to_origin)
-      # print('ori_to_end: ', origin_to_end)
-      merged_points = np.concatenate((inv_to_origin, origin_to_end), axis=0)
-    else: 
-      end_to_origin = new_all_curves[i][0:end_index][::1]
-      origin_to_inv = new_all_curves[i][1:inversion_index]
-      merged_points = np.concatenate((end_to_origin, origin_to_inv), axis=0)
-    # print('merged: ', merged_points)
+def MergingLPCPoints(all_connection_points, new_all_end_points, new_all_inv_points, new_all_curves, all_curves):
+  new_lpc = copy.deepcopy(new_all_curves)
+  for i in range(len(new_all_curves) - 1): 
+    if len(new_all_curves)>1:
+      current_inv_point = is_inversion_point(all_connection_points[i],new_all_inv_points[i])
+      next_inv_point = is_inversion_point(all_connection_points[i+1],new_all_inv_points[i+1])
+      current_end_point = is_end_point(all_connection_points[i],new_all_end_points[i])
+      next_end_point = is_end_point(all_connection_points[i+1],new_all_end_points[i+1])
+
+      if (current_inv_point and next_inv_point) or (current_end_point and next_end_point):
+        new_lpc[i+1] = new_all_curves[i+1][::-1]
+
+      merged_points = np.concatenate((new_lpc[i], all_curves[i], new_lpc[i+1]))
+    else:
+      
+
   return merged_points
 
 def Angles(all_curves, all_LPCindex_points):
@@ -456,9 +460,9 @@ if __name__ == '__main__':
     all_cluster_all_distances = LPCDistances(all_sorted_curves_in_ev)
     new_all_cluster_all_distances = LPCDistances(new_all_sorted_curves_in_ev)
 
-    # all_connection_points = ConnectingLPCclusters(all_clusters_in_ev, all_remaining_points, all_curves_in_ev, all_inv_points, all_end_points, new_all_curves_in_ev, new_all_inv_points, new_all_end_points)
+    all_connection_points = ConnectingLPCclusters(all_clusters_in_ev, all_remaining_points, all_sorted_curves_in_ev, all_inv_points, all_end_points, new_all_sorted_curves_in_ev, new_all_inv_points, new_all_end_points)
 
-    # merged_points = MergingLPCPoints(all_connection_points, new_all_end_points, new_all_inv_points, new_all_curves_in_ev)
+    merged_points = MergingLPCPoints(all_connection_points, new_all_end_points, new_all_inv_points, new_all_sorted_curves_in_ev, all_sorted_curves_in_ev)
 
     all_scalar_products, all_LPC_vertex_nrpoints = Angles(all_sorted_curves_in_ev, all_LPCindex_points)
 
@@ -518,12 +522,12 @@ if __name__ == '__main__':
       # ax.quiver(*new_all_end_points[1], all_connections[2][0],all_connections[2][1],all_connections[2][2])
       # ax.quiver(*all_inv_points[0], all_connections[1][0],all_connections[1][1],all_connections[1][2])
       # ax.quiver(*all_end_points[0], all_connections[0][0],all_connections[0][1],all_connections[0][2])
-    # for new_c in range(len(new_all_curves_in_ev)):
-    #   ax.scatter3D(new_all_curves_in_ev[new_c][:, 0], new_all_curves_in_ev[new_c][:,1], new_all_curves_in_ev[new_c][:,2], color = 'blue')
-    #   ax.scatter3D(new_all_curves_in_ev[new_c][0, 0], new_all_curves_in_ev[new_c][0,1], new_all_curves_in_ev[new_c][0,2], color = 'black')
-    #   # ax.scatter3D(new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1, 0], new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1,1], new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1,2], color = 'blue')
-    #   ax.scatter3D(new_all_end_points[new_c][0],new_all_end_points[new_c][1],new_all_end_points[new_c][2], color = 'blue')
-    #   ax.scatter3D(new_all_inv_points[new_c][0],new_all_inv_points[new_c][1],new_all_inv_points[new_c][2], color = 'cyan')
+    for new_c in range(len(new_all_sorted_curves_in_ev)):
+      ax.scatter3D(new_all_sorted_curves_in_ev[new_c][:, 0], new_all_sorted_curves_in_ev[new_c][:,1], new_all_sorted_curves_in_ev[new_c][:,2], color = 'blue')
+      ax.scatter3D(new_all_sorted_curves_in_ev[new_c][0, 0], new_all_sorted_curves_in_ev[new_c][0,1], new_all_sorted_curves_in_ev[new_c][0,2], color = 'black')
+      # ax.scatter3D(new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1, 0], new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1,1], new_all_curves_in_ev[new_c][len(new_all_curves_in_ev[new_c])-1,2], color = 'blue')
+      ax.scatter3D(new_all_end_points[new_c][0],new_all_end_points[new_c][1],new_all_end_points[new_c][2], color = 'blue')
+      ax.scatter3D(new_all_inv_points[new_c][0],new_all_inv_points[new_c][1],new_all_inv_points[new_c][2], color = 'cyan')
 
       
     
