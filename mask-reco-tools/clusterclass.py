@@ -1,6 +1,6 @@
 import numpy as np
 from lpcclass import LPCSolver
-from lpc_analysis_new import Clustering, all_parameters, LPCDistances
+from lpc_analysis_new import Clustering, all_parameters, ComputeLPCDistances
 
 class VoxelCluster:
     def __init__(self, _centers, _amps):
@@ -21,7 +21,6 @@ class VoxelCluster:
         R = 6*(geotree.voxel_size)
         externalPoints = []
         externalAmps = []
-        print(len(self.centers))
         for i,c in enumerate(self.centers):
             all_distances = []
             for lpc in lpcPoints:
@@ -37,25 +36,30 @@ class VoxelCluster:
             for rem_clust in rem_clusters: 
                 self.ComputeLPC(rem_clust.centers, rem_clust.amps)
 
-    def Angles(curve, all_LPCindex_points):
-        all_clusters_all_distances = LPCDistances(all_curves)
-        all_scalar_products = []
-        all_LPC_vertex_nrpoints = []
-        for i in range(len(all_clusters_all_distances)):#loop sui cluster di distanze (sono i cluster di lpc)
-            scalar_products = []
-            for j in range(len(all_clusters_all_distances[i])):#loop sulle singole distanze di un singolo cluster
-                if j < (len(all_clusters_all_distances[i])-1):
-                    scalar_prod = np.dot(all_clusters_all_distances[i][j], all_clusters_all_distances[i][j+1])
-                    norm_product = np.linalg.norm(all_clusters_all_distances[i][j])*np.linalg.norm(all_clusters_all_distances[i][j+1])
-                    quantity_to_plot = norm_product*(1 - np.abs(scalar_prod/norm_product))
-            scalar_products.append(quantity_to_plot)
-            lpc_point_angles = {k:v for (k,v) in zip(range(1,len(all_LPCindex_points[i])),scalar_products)}#faccio partire da 1 il conto perchè voglio che l'indice che conta gli angoli parta dal secondo punto lpc
-            LPC_vertex_nrpoint = int([k for k, v in lpc_point_angles.items() if v == np.max(scalar_products)][0])
-            all_LPC_vertex_nrpoints.append(LPC_vertex_nrpoint)
-            all_scalar_products.append(scalar_products)
-        return all_scalar_products, all_LPC_vertex_nrpoints
+    def ComputeLPCNonCollinearity(self, lpcPoints):
+        all_distances = ComputeLPCDistances(lpcPoints)
 
-
+        all_non_collinearities = []
+        for i in range(len(all_distances)):
+            if i < (len(all_distances)-1):
+                scalar_product = np.dot(all_distances[i], all_distances[i+1])
+                norm_product = np.linalg.norm(all_distances[i])*np.linalg.norm(all_distances[i+1])
+                # given 2 vectors a and b, the non collinearity is |a||b|(1-|cosPhi|), 
+                # that can be written also as |a||b| - a•b, since cosPhi = (a•b)/|a||b|
+                non_collinearity = (norm_product - np.abs(scalar_product))#norm_product*(1-np.abs(scalar_product/norm_product))
+                all_non_collinearities.append(non_collinearity)
+        # make the non-coll values corresponding with the lpc points 
+        # (starting from the second lpc point, where the first non-coll is computed)
+        sorted_non_collinearities = {k:v for (k,v) in zip(range(1,len(lpcPoints)), all_non_collinearities)}
+        feature_point = int([k for k, v in sorted_non_collinearities.items() if v == np.max(all_non_collinearities)][0])# lpc corresponding to maximum non-collinearity, in principle the closest to the vertex.
+        print(feature_point)
+        return sorted_non_collinearities, feature_point
+    
+    def BreakLPCs(self, lpcPoints):
+        _, feature_point = ComputeLPCDistances(self, lpcPoints)
+        broken_lpc1 = lpcPoints[:feature_point]
+        broken_lpc2 = lpcPoints[feature_point:]
+        return 1
 
     def MergeLPCPoints(self):
         closest_points = []

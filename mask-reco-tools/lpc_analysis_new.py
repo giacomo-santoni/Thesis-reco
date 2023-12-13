@@ -6,7 +6,10 @@ import clusterclass
 from recodisplay import load_pickle
 from geom_import import load_geometry
 
-all_parameters = {"epsilon" : 36, "min_points" : 6, "bandwidth" : 40, "stepsize" : 40, "cuts" : [100,500], "g_cut_perc" : 0.05, "it" : 500, "g_it" : 200}
+defs = {}
+defs['voxel_size'] = 12
+#bandwidth = 30, stepsize = 55
+all_parameters = {"epsilon" : 3*defs['voxel_size'], "min_points" : 6, "bandwidth" : 2.5*defs['voxel_size'], "stepsize" : 4.6*defs['voxel_size'], "cuts" : [100,500], "g_cut_perc" : 0.05, "it" : 500, "g_it" : 200}
 
 def EventNumberList(fname):
    f = open(fname, "r")
@@ -99,42 +102,23 @@ def Clustering(centers, amps):
 def ExtendedLPC(all_clusters_in_ev, geotree):
   new_all_curves_in_ev = []
   for cluster in all_clusters_in_ev:
-    cluster.ExtendLPC(cluster.LPCs[0], geotree)
+    cluster.ExtendLPC(cluster.LPCs[0], geotree)#[0] because cluster.LPCs at this point is a list that contains a single list with the primary LPCs
     curve = cluster.LPCs
-    print("len: ", len(curve))
-    curve = np.concatenate(curve)
-    print("len: ", len(curve))
+    # print("len: ", len(curve))
+    #curve = np.asarray(curve[0])
+    # print("len: ", len(curve))
     new_all_curves_in_ev.append(curve)
   return new_all_curves_in_ev
 
-def LPCDistances(all_curves):
-  all_clusters_all_distances = []#questo è una lista di liste che ha tutte le distanze interne a ogni cluster di lpc
-  for i in range(len(all_curves)):#loop sui cluster di lpc
-    all_distances = []#inizializzo qua perchè voglio le distanze tra punti per un singolo cluster
-    for j in range(len(all_curves[i])):#loop sui singoli punti di un cluster di lpc
-      if j < len(all_curves[i])-1:
-        distance = all_curves[i][j+1] - all_curves[i][j]
-        all_distances.append(distance)
-    all_clusters_all_distances.append(all_distances)
-  return all_clusters_all_distances
+def ComputeLPCDistances(curve):#compute vector distances only considering one lpc cluster
+  all_distances = []#inizializzo qua perchè voglio le distanze tra punti per un singolo cluster
+  for i in range(len(curve)):#loop sui singoli punti di un cluster di lpc
+    if i < (len(curve)-1):
+      distance = curve[i+1] - curve[i]
+      all_distances.append(distance)
+  return all_distances
 
-def Angles(curve, all_LPCindex_points):
-  all_clusters_all_distances = LPCDistances(all_curves)
-  all_scalar_products = []
-  all_LPC_vertex_nrpoints = []
-  for i in range(len(all_clusters_all_distances)):#loop sui cluster di distanze (sono i cluster di lpc)
-    scalar_products = []
-    for j in range(len(all_clusters_all_distances[i])):#loop sulle singole distanze di un singolo cluster
-      if j < (len(all_clusters_all_distances[i])-1):
-        scalar_prod = np.dot(all_clusters_all_distances[i][j], all_clusters_all_distances[i][j+1])
-        norm_product = np.linalg.norm(all_clusters_all_distances[i][j])*np.linalg.norm(all_clusters_all_distances[i][j+1])
-        quantity_to_plot = norm_product*(1 - np.abs(scalar_prod/norm_product))
-      scalar_products.append(quantity_to_plot)
-      lpc_point_angles = {k:v for (k,v) in zip(range(1,len(all_LPCindex_points[i])),scalar_products)}#faccio partire da 1 il conto perchè voglio che l'indice che conta gli angoli parta dal secondo punto lpc
-    LPC_vertex_nrpoint = int([k for k, v in lpc_point_angles.items() if v == np.max(scalar_products)][0])
-    all_LPC_vertex_nrpoints.append(LPC_vertex_nrpoint)
-    all_scalar_products.append(scalar_products)
-  return all_scalar_products, all_LPC_vertex_nrpoints
+
 
 if __name__ == '__main__':
   eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
@@ -143,8 +127,6 @@ if __name__ == '__main__':
   # selectedEvents = [0,1,2,4,5,6,7,8,9]
   # selectedEvents = [eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
 
-  defs = {}
-  defs['voxel_size'] = 12
   geometryPath = "./geometry" #path to GRAIN geometry
   fpkl1 = "./data/initial-data/reco_data/3dreco-0-10.pkl" #reconstruction data file
   fpkl2 = "./data/initial-data/reco_data/3dreco-10-30.pkl"
@@ -160,7 +142,13 @@ if __name__ == '__main__':
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
 
     new_all_curves_in_ev = ExtendedLPC(all_clusters_in_ev, geom.fiducial)
-    #print("nuovi lpc: ", new_all_curves_in_ev)
+
+    # print(len(new_all_curves_in_ev[0][0]))
+    # all_distances = ComputeLPCDistances(new_all_curves_in_ev[0][0])
+    # print("dist: ", len(all_distances))
+    
+    for cluster in all_clusters_in_ev:
+      sorted_non_collinearities, feature_point = cluster.ComputeLPCNonCollinearity(new_all_curves_in_ev[0][0])
 
     print("evento: ", selectedEvents[i])
 
@@ -176,17 +164,20 @@ if __name__ == '__main__':
     ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
     # for c in range(len(new_all_curves_in_ev)):
     #   ax.scatter3D(new_all_curves_in_ev[c][:, 0], new_all_curves_in_ev[c][:,1], new_all_curves_in_ev[c][:,2], color = 'red')#allLPCpoints
+    # for curve in new_all_curves_in_ev:
+    new_all_curves_in_ev[0][0] = np.asarray(new_all_curves_in_ev[0][0])
+    # lpc_points = np.asarray(curve)
+    # lpc_points = np.squeeze(curve)
+    #ax.scatter3D(curve[:,0], curve[:,1], curve[:,2], color = 'red')#allLPCpoints
+    #ax.scatter3D(externalPoints[:,0],externalPoints[:,1],externalPoints[:,2], color = 'darkorange')#remainingcenters
+    ax.scatter3D(new_all_curves_in_ev[0][0][feature_point,0], new_all_curves_in_ev[0][0][feature_point,1], new_all_curves_in_ev[0][0][feature_point,2], color = 'blue', marker = 'D')
+    ax.scatter3D(new_all_curves_in_ev[0][0][:,0], new_all_curves_in_ev[0][0][:,1], new_all_curves_in_ev[0][0][:,2], color = 'red')
+
+    fig2 = plt.figure()
     for curve in new_all_curves_in_ev:
-      #lpc_points = np.asarray(curve)
-      # lpc_points = np.squeeze(curve)
-      ax.scatter3D(curve[:,0], curve[:,1], curve[:,2], color = 'red')#allLPCpoints
-      #ax.scatter3D(externalPoints[:,0],externalPoints[:,1],externalPoints[:,2], color = 'darkorange')#remainingcenters
- 
-  #   fig2 = plt.figure()
-  #   for c in range(len(all_sorted_curves_in_ev)):
-  #     plt.xlabel("lpc point number")
-  #     plt.ylabel("|a||b|(1-|cos$\Phi$|)")
-  #     plt.scatter(range(1,len(all_LPCindex_points[c])),all_scalar_products[c])
+      plt.xlabel("lpc point number")
+      plt.ylabel("|a||b|(1-|cos$\Phi$|)")
+      plt.scatter(sorted_non_collinearities.keys(), sorted_non_collinearities.values())
     
     plt.title(selectedEvents[i])
     plt.legend()
