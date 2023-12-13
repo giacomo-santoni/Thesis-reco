@@ -8,7 +8,7 @@ class LPCSolver:
     def __init__(self) -> None:
         self.lpcPoints = []
         self.maxPoints = 200
-        self.corvergenceRate = 10e-8
+        self.convergenceRate = 10e-2
         self.correctionFactor = 1
         self.isDirectionForwards = True
         self.h = 80   #constant bandwidth parameter
@@ -46,7 +46,7 @@ class LPCSolver:
         for i,p in enumerate(self.pointsXYZ):
             w = self.__computeWeight(location, self.pointsAmpl[i], p)
             vecSum += w * p
-            weightSum += w 
+            weightSum += w
         return vecSum/weightSum
 
     def __lpcShift(self, location, prevEigVec):
@@ -74,17 +74,17 @@ class LPCSolver:
     def __checkConvergence(self, thisPathLength, totalPathLength):
         isConverged = False
         R = thisPathLength / totalPathLength
-        if R < self.corvergenceRate:
+        if R < self.convergenceRate:
             isConverged = True
         return isConverged
 
 
-    def solve(self):
+    def solve(self):#, _startPoint):
         #find start point as points centroid (amplitude-weighted )
         self.isDirectionForwards = True 
         self.startPoint = np.average(self.pointsXYZ, axis = 0, weights = self.pointsAmpl)
-        #self.startPoint = self.setMaxAmpPoint(self.pointsXYZ, self.pointsAmpl)
-        print(self.startPoint)
+        # self.startPoint = self.setMaxAmpPoint(self.pointsXYZ, self.pointsAmpl)
+        # self.startPoint = _startPoint
         previousPoint = self.__meanShift(self.startPoint)
         self.lpcPoints.append(previousPoint)     
         previousEigVec = None
@@ -99,14 +99,16 @@ class LPCSolver:
             self.lpcPoints.append(nextPoint)
             previousPoint = nextPoint
             previousEigVec = nextEigVec
+            self.inversionPoint = previousPoint
             nPoints += 1
             if (self.__checkConvergence(thisPathLength, totalPathLength)):
                 break
-            
+
+        self.lpcPoints = self.lpcPoints[::-1]   
         # back first lpc point (local mean in start point), now go backwards
         self.isDirectionForwards = False
         previousEigVec = None     
-        previousPoint = self.lpcPoints[0]
+        previousPoint = self.lpcPoints[-1]
         totalPathLength = 0
         while (nPoints < self.maxPoints):
             nextPoint, nextEigVec = self.__lpcShift(previousPoint, previousEigVec)
@@ -116,11 +118,12 @@ class LPCSolver:
             self.lpcPoints.append(nextPoint)
             previousPoint = nextPoint
             previousEigVec = nextEigVec
-            nPoints += 1 
+            self.endPoint = previousPoint
+            nPoints += 1
             if (self.__checkConvergence(thisPathLength, totalPathLength)):
                 break
             
-        self.lpcPoints = np.array(self.lpcPoints)
+        #self.lpcPoints = np.array(self.lpcPoints)
 
     def plot(self, truth=None):
         fig = plt.figure()
