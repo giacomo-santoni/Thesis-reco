@@ -105,7 +105,7 @@ def ExtendedLPC(all_clusters_in_ev, geotree):
     cluster.ExtendLPC(cluster.LPCs[0], geotree)#[0] because cluster.LPCs at this point is a list that contains a single list with the primary LPCs
     curve = cluster.LPCs
     # print("len: ", len(curve))
-    #curve = np.asarray(curve[0])
+    # curve = np.asarray(curve)
     # print("len: ", len(curve))
     new_all_curves_in_ev.append(curve)
   return new_all_curves_in_ev
@@ -117,7 +117,6 @@ def ComputeLPCDistances(curve):#compute vector distances only considering one lp
       distance = curve[i+1] - curve[i]
       all_distances.append(distance)
   return all_distances
-
 
 
 if __name__ == '__main__':
@@ -140,15 +139,24 @@ if __name__ == '__main__':
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
   for i in range(len(selectedEvents)):
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
+    
+    # all_curves_in_ev = []
+    # for cluster in all_clusters_in_ev: 
+    #   curve = cluster.LPCs[0]
+    #   all_curves_in_ev.append(curve)
 
     new_all_curves_in_ev = ExtendedLPC(all_clusters_in_ev, geom.fiducial)
 
-    # print(len(new_all_curves_in_ev[0][0]))
+    print(len(new_all_curves_in_ev[0]))
     # all_distances = ComputeLPCDistances(new_all_curves_in_ev[0][0])
     # print("dist: ", len(all_distances))
     
     for cluster in all_clusters_in_ev:
       sorted_non_collinearities, feature_point = cluster.ComputeLPCNonCollinearity(new_all_curves_in_ev[0][0])
+      broken_curves_distances = cluster.BreakLPCs(new_all_curves_in_ev[0][0])
+      if len(new_all_curves_in_ev[0])>1:
+        cluster.FindCollinearCurves(new_all_curves_in_ev[0][0])
+
 
     print("evento: ", selectedEvents[i])
 
@@ -166,12 +174,28 @@ if __name__ == '__main__':
     #   ax.scatter3D(new_all_curves_in_ev[c][:, 0], new_all_curves_in_ev[c][:,1], new_all_curves_in_ev[c][:,2], color = 'red')#allLPCpoints
     # for curve in new_all_curves_in_ev:
     new_all_curves_in_ev[0][0] = np.asarray(new_all_curves_in_ev[0][0])
+    # if len(new_all_curves_in_ev)>1:
+    #new_all_curves_in_ev[0][2] = np.asarray(new_all_curves_in_ev[0][2])
     # lpc_points = np.asarray(curve)
     # lpc_points = np.squeeze(curve)
     #ax.scatter3D(curve[:,0], curve[:,1], curve[:,2], color = 'red')#allLPCpoints
     #ax.scatter3D(externalPoints[:,0],externalPoints[:,1],externalPoints[:,2], color = 'darkorange')#remainingcenters
     ax.scatter3D(new_all_curves_in_ev[0][0][feature_point,0], new_all_curves_in_ev[0][0][feature_point,1], new_all_curves_in_ev[0][0][feature_point,2], color = 'blue', marker = 'D')
     ax.scatter3D(new_all_curves_in_ev[0][0][:,0], new_all_curves_in_ev[0][0][:,1], new_all_curves_in_ev[0][0][:,2], color = 'red')
+    if len(new_all_curves_in_ev[0])>1:
+      new_all_curves_in_ev[0][1] = np.asarray(new_all_curves_in_ev[0][1])
+      ax.scatter3D(new_all_curves_in_ev[0][1][:,0], new_all_curves_in_ev[0][1][:,1], new_all_curves_in_ev[0][1][:,2], color = 'blue')
+      # new_all_curves_in_ev[0][2] = np.asarray(new_all_curves_in_ev[0][2])
+      # ax.scatter3D(new_all_curves_in_ev[0][2][:,0], new_all_curves_in_ev[0][2][:,1], new_all_curves_in_ev[0][2][:,2], color = 'blue')
+      # new_all_curves_in_ev[0][3] = np.asarray(new_all_curves_in_ev[0][3])
+      # ax.scatter3D(new_all_curves_in_ev[0][3][:,0], new_all_curves_in_ev[0][3][:,1], new_all_curves_in_ev[0][3][:,2], color = 'blue')
+    if len(new_all_curves_in_ev)>1:
+      new_all_curves_in_ev[1][0] = np.asarray(new_all_curves_in_ev[1][0])
+      ax.scatter3D(new_all_curves_in_ev[1][0][:,0], new_all_curves_in_ev[1][0][:,1], new_all_curves_in_ev[1][0][:,2], color = 'red')
+      if len(new_all_curves_in_ev[1])>1:
+        new_all_curves_in_ev[1][1] = np.asarray(new_all_curves_in_ev[1][1])
+        ax.scatter3D(new_all_curves_in_ev[1][1][:,0], new_all_curves_in_ev[1][1][:,1], new_all_curves_in_ev[1][1][:,2], color = 'blue')
+    #ax.scatter3D(new_all_curves_in_ev[0][2][:,0], new_all_curves_in_ev[0][2][:,1], new_all_curves_in_ev[0][2][:,2], color = 'forestgreen')
 
     fig2 = plt.figure()
     for curve in new_all_curves_in_ev:

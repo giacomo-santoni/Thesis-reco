@@ -18,7 +18,7 @@ class VoxelCluster:
         self.LPCs.append(lpc.lpcPoints)
 
     def ExtendLPC(self, lpcPoints, geotree):
-        R = 6*(geotree.voxel_size)
+        R = 6.85*(geotree.voxel_size)
         externalPoints = []
         externalAmps = []
         for i,c in enumerate(self.centers):
@@ -44,22 +44,51 @@ class VoxelCluster:
             if i < (len(all_distances)-1):
                 scalar_product = np.dot(all_distances[i], all_distances[i+1])
                 norm_product = np.linalg.norm(all_distances[i])*np.linalg.norm(all_distances[i+1])
-                # given 2 vectors a and b, the non collinearity is |a||b|(1-|cosPhi|), 
-                # that can be written also as |a||b| - a•b, since cosPhi = (a•b)/|a||b|
-                non_collinearity = (norm_product - np.abs(scalar_product))#norm_product*(1-np.abs(scalar_product/norm_product))
+                #given 2 vectors a and b, the non collinearity is |a||b|(1-|cosPhi|), 
+                #that can be written also as |a||b| - a•b, since cosPhi = (a•b)/|a||b|
+                if np.abs(scalar_product/norm_product) > 0.2:
+                    non_collinearity = 1-np.abs(scalar_product/norm_product)#(norm_product - np.abs(scalar_product))#
+                else: non_collinearity = 0
                 all_non_collinearities.append(non_collinearity)
-        # make the non-coll values corresponding with the lpc points 
-        # (starting from the second lpc point, where the first non-coll is computed)
+        #make the non-coll values corresponding with the lpc points 
+        #(starting from the second lpc point, where the first non-coll is computed)
         sorted_non_collinearities = {k:v for (k,v) in zip(range(1,len(lpcPoints)), all_non_collinearities)}
         feature_point = int([k for k, v in sorted_non_collinearities.items() if v == np.max(all_non_collinearities)][0])# lpc corresponding to maximum non-collinearity, in principle the closest to the vertex.
-        print(feature_point)
         return sorted_non_collinearities, feature_point
     
-    def BreakLPCs(self, lpcPoints):
-        _, feature_point = ComputeLPCDistances(self, lpcPoints)
-        broken_lpc1 = lpcPoints[:feature_point]
-        broken_lpc2 = lpcPoints[feature_point:]
-        return 1
+    def BreakLPCs(self, lpcPoints):#I have to pass the FIRST cluster of lpc points in a voxel cluster
+        _, feature_point = self.ComputeLPCNonCollinearity(lpcPoints)
+        self.broken_lpccurve = (lpcPoints[:feature_point+1], lpcPoints[feature_point:])
+        broken_curves_distances = []
+        for curve in self.broken_lpccurve:
+            distance = curve[-1] - curve[0]
+            broken_curves_distances.append(distance)
+        return broken_curves_distances
+
+    def FindCollinearCurves(self, lpcPoints):
+        broken_curves_distances = self.BreakLPCs(lpcPoints)
+
+        new_curves_distances = []
+        for curve in self.LPCs[1:]:#since I want to consider the lpc clusters obtained in ExtendLPC()
+            distance = curve[-1] - curve[0]
+            new_curves_distances.append(distance)
+
+        collinearities = []
+        for i, b_distance in enumerate(broken_curves_distances):
+            for j, n_distance in enumerate(new_curves_distances):
+                scalar_product = np.dot(b_distance, n_distance)
+                norm_product = np.linalg.norm(b_distance)*np.linalg.norm(n_distance)
+                collinearity = np.abs(scalar_product/norm_product)#collinearity is the absolute value of cosine
+                collinearities.append((collinearity, (self.broken_lpccurve[i], self.LPCs[1:][j])))
+        sorted_collinearities = {k:v for (k,v) in collinearities}
+        print("nr coll: ", len(sorted_collinearities))
+        max_collinearities = sorted(list(sorted_collinearities.keys()), reverse=True)[:len(self.LPCs[1:])]
+        print("max collinearities: ", max_collinearities)
+        collinear_clusters = sorted_collinearities[max_collinearities[0]]
+        print(collinear_clusters)
+
+
+
 
     def MergeLPCPoints(self):
         closest_points = []
