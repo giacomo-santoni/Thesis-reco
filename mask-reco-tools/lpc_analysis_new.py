@@ -110,6 +110,12 @@ def ExtendedLPC(all_clusters_in_ev, geotree):
     new_all_curves_in_ev.append(curve)
   return new_all_curves_in_ev
 
+def Collinearity(dist1, dist2):
+  scalar_product = np.dot(dist1, dist2)
+  norm_product = np.linalg.norm(dist1)*np.linalg.norm(dist2)
+  cosine = scalar_product/norm_product
+  return cosine
+
 def ComputeLPCDistances(curve):#compute vector distances only considering one lpc cluster
   all_distances = []#inizializzo qua perchè voglio le distanze tra punti per un singolo cluster
   for i in range(len(curve)):#loop sui singoli punti di un cluster di lpc
@@ -120,11 +126,12 @@ def ComputeLPCDistances(curve):#compute vector distances only considering one lp
 
 
 if __name__ == '__main__':
-  eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
+  #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
+  eventNumbers = EventNumberList("./data/data_1-12/idlist_ccqe_mup.txt")
   # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
-  selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
+  # selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
   # selectedEvents = [0,1,2,4,5,6,7,8,9]
-  # selectedEvents = [eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
+  selectedEvents = [eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
 
   geometryPath = "./geometry" #path to GRAIN geometry
   fpkl1 = "./data/initial-data/reco_data/3dreco-0-10.pkl" #reconstruction data file
@@ -134,7 +141,7 @@ if __name__ == '__main__':
   geom = load_geometry(geometryPath, defs)
 
   # g_centers_all_ev, g_amps_all_ev, g_recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, applyGradient=True)
-  centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl1, fpkl2, geom.fiducial, applyGradient=False)
+  centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl4, fpkl2, geom.fiducial, applyGradient=False)
 
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
   for i in range(len(selectedEvents)):
@@ -151,12 +158,16 @@ if __name__ == '__main__':
     # all_distances = ComputeLPCDistances(new_all_curves_in_ev[0][0])
     # print("dist: ", len(all_distances))
     
+    all_cluster_collinearities = []
+    all_collinear_LPCs = []
     for cluster in all_clusters_in_ev:
-      sorted_non_collinearities, feature_point = cluster.ComputeLPCNonCollinearity(new_all_curves_in_ev[0][0])
-      broken_curves_distances = cluster.BreakLPCs(new_all_curves_in_ev[0][0])
+      sorted_non_collinearities, feature_point = cluster.ComputeLPCNonCollinearity()#new_all_curves_in_ev[0][0])
+      all_cluster_collinearities.append(sorted_non_collinearities)
+      broken_curves_distances = cluster.BreakLPCs()#(new_all_curves_in_ev[0][0])
       if len(new_all_curves_in_ev[0])>1:
-        cluster.FindCollinearCurves(new_all_curves_in_ev[0][0])
-
+        cluster.FindCollinearCurves()#(new_all_curves_in_ev[0][0])
+        collinear_LPCs = cluster.collinear_clusters
+        all_collinear_LPCs.append(collinear_LPCs)
 
     print("evento: ", selectedEvents[i])
 
@@ -170,38 +181,26 @@ if __name__ == '__main__':
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
-    # for c in range(len(new_all_curves_in_ev)):
-    #   ax.scatter3D(new_all_curves_in_ev[c][:, 0], new_all_curves_in_ev[c][:,1], new_all_curves_in_ev[c][:,2], color = 'red')#allLPCpoints
-    # for curve in new_all_curves_in_ev:
-    new_all_curves_in_ev[0][0] = np.asarray(new_all_curves_in_ev[0][0])
-    # if len(new_all_curves_in_ev)>1:
-    #new_all_curves_in_ev[0][2] = np.asarray(new_all_curves_in_ev[0][2])
-    # lpc_points = np.asarray(curve)
-    # lpc_points = np.squeeze(curve)
-    #ax.scatter3D(curve[:,0], curve[:,1], curve[:,2], color = 'red')#allLPCpoints
-    #ax.scatter3D(externalPoints[:,0],externalPoints[:,1],externalPoints[:,2], color = 'darkorange')#remainingcenters
-    ax.scatter3D(new_all_curves_in_ev[0][0][feature_point,0], new_all_curves_in_ev[0][0][feature_point,1], new_all_curves_in_ev[0][0][feature_point,2], color = 'blue', marker = 'D')
-    ax.scatter3D(new_all_curves_in_ev[0][0][:,0], new_all_curves_in_ev[0][0][:,1], new_all_curves_in_ev[0][0][:,2], color = 'red')
-    if len(new_all_curves_in_ev[0])>1:
-      new_all_curves_in_ev[0][1] = np.asarray(new_all_curves_in_ev[0][1])
-      ax.scatter3D(new_all_curves_in_ev[0][1][:,0], new_all_curves_in_ev[0][1][:,1], new_all_curves_in_ev[0][1][:,2], color = 'blue')
-      # new_all_curves_in_ev[0][2] = np.asarray(new_all_curves_in_ev[0][2])
-      # ax.scatter3D(new_all_curves_in_ev[0][2][:,0], new_all_curves_in_ev[0][2][:,1], new_all_curves_in_ev[0][2][:,2], color = 'blue')
-      # new_all_curves_in_ev[0][3] = np.asarray(new_all_curves_in_ev[0][3])
-      # ax.scatter3D(new_all_curves_in_ev[0][3][:,0], new_all_curves_in_ev[0][3][:,1], new_all_curves_in_ev[0][3][:,2], color = 'blue')
-    if len(new_all_curves_in_ev)>1:
-      new_all_curves_in_ev[1][0] = np.asarray(new_all_curves_in_ev[1][0])
-      ax.scatter3D(new_all_curves_in_ev[1][0][:,0], new_all_curves_in_ev[1][0][:,1], new_all_curves_in_ev[1][0][:,2], color = 'red')
-      if len(new_all_curves_in_ev[1])>1:
-        new_all_curves_in_ev[1][1] = np.asarray(new_all_curves_in_ev[1][1])
-        ax.scatter3D(new_all_curves_in_ev[1][1][:,0], new_all_curves_in_ev[1][1][:,1], new_all_curves_in_ev[1][1][:,2], color = 'blue')
-    #ax.scatter3D(new_all_curves_in_ev[0][2][:,0], new_all_curves_in_ev[0][2][:,1], new_all_curves_in_ev[0][2][:,2], color = 'forestgreen')
+    for curves_in_clust in new_all_curves_in_ev:
+      for single_curve in curves_in_clust:
+        single_curve = np.asarray(single_curve)
+        ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
+        if feature_point in range(len(single_curve)):
+          ax.scatter3D(single_curve[feature_point,0], single_curve[feature_point,1], single_curve[feature_point,2], color = 'blue', marker = 'D')
+        else:# feature_point in range(len(curves_in_clust[0])): 
+          curves_in_clust[0] = np.asarray(curves_in_clust[0])
+          ax.scatter3D(curves_in_clust[0][feature_point,0], curves_in_clust[0][feature_point,1], curves_in_clust[0][feature_point,2], color = 'blue', marker = 'D')
 
+    for collinear_clust in all_collinear_LPCs:
+      for collinear_LPCs in collinear_clust:
+        collinear_LPCs = np.asarray(collinear_LPCs)
+        ax.scatter3D(collinear_LPCs[:, 0], collinear_LPCs[:,1], collinear_LPCs[:,2], color = 'forestgreen')
+        
     fig2 = plt.figure()
-    for curve in new_all_curves_in_ev:
+    for clust_collinearities in all_cluster_collinearities:
       plt.xlabel("lpc point number")
-      plt.ylabel("|a||b|(1-|cos$\Phi$|)")
-      plt.scatter(sorted_non_collinearities.keys(), sorted_non_collinearities.values())
+      plt.ylabel("(1-|cos$\Phi$|)")
+      plt.scatter(clust_collinearities.keys(), clust_collinearities.values())
     
     plt.title(selectedEvents[i])
     plt.legend()
