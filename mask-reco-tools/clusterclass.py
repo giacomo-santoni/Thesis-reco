@@ -18,7 +18,7 @@ class VoxelCluster:
         self.LPCs.append(lpc.lpcPoints)
 
     def ExtendLPC(self, lpcPoints, geotree):
-        R = 6.85*(geotree.voxel_size)
+        R = 7*(geotree.voxel_size)
         externalPoints = []
         externalAmps = []
         for i,c in enumerate(self.centers):
@@ -36,62 +36,40 @@ class VoxelCluster:
             for rem_clust in rem_clusters: 
                 self.ComputeLPC(rem_clust.centers, rem_clust.amps)
 
-    def ComputeLPCNonCollinearity(self):
+    def FindBreakPoint(self):
         all_distances = ComputeLPCDistances(self.LPCs[0])
         #t = all_parameters["stepsize"]
-        l = defs["voxel_size"]
+        #l = defs["voxel_size"]
 
         all_non_collinearities = []
+        all_norms = []
         for i in range(len(all_distances)):
             if i < (len(all_distances)-1):
-                # scalar_product = np.dot(all_distances[i], all_distances[i+1])
-                # norm_product = np.linalg.norm(all_distances[i])*np.linalg.norm(all_distances[i+1])
-                #given 2 vectors a and b, the non collinearity is |a||b|(1-|cosPhi|), 
-                #that can be written also as |a||b| - a•b, since cosPhi = (a•b)/|a||b|
+                scalar_product = np.dot(all_distances[i], all_distances[i+1])
+                norm_product = np.abs(np.linalg.norm(all_distances[i]))*np.abs(np.linalg.norm(all_distances[i+1]))
+                all_norms.append(norm_product)
+                #given 2 vectors a and b, the non collinearity is |a||b|(1-|cosPhi|), that can be written also as |a||b| - a•b, since cosPhi = (a•b)/|a||b|
                 cosine = Collinearity(all_distances[i], all_distances[i+1])
-                if np.linalg.norm(all_distances[i]) > 2*l or np.linalg.norm(all_distances[i+1]) > 2*l:
-                    non_collinearity =  (1-np.abs(cosine))#(norm_product - np.abs(scalar_product))#
-                else: non_collinearity = 0
+                non_collinearity =  (norm_product)*(1-np.abs(cosine))#(norm_product - np.abs(scalar_product))
                 all_non_collinearities.append(non_collinearity)
         #make the non-coll values corresponding with the lpc points 
         #(starting from the second lpc point, where the first non-coll is computed)
         sorted_non_collinearities = {k:v for (k,v) in zip(range(1,len(self.LPCs[0])), all_non_collinearities)}
-        feature_point = int([k for k, v in sorted_non_collinearities.items() if v == np.max(all_non_collinearities)][0])# lpc corresponding to maximum non-collinearity, in principle the closest to the vertex.
-        return sorted_non_collinearities, feature_point
+        for i,(k,v) in enumerate(sorted_non_collinearities.items()):
+            # print("non-coll: ", v)
+            # print("1-cos: ", v/norm_product)
+            if v == np.max(all_non_collinearities):#v/all_norms[i] > 0 and
+                self.break_point = k
+            #else: self.break_point = 0
     
     def BreakLPCs(self):#I have to pass the FIRST cluster of lpc points in a voxel cluster
-        _, feature_point = self.ComputeLPCNonCollinearity()
-        self.broken_lpccurve = (self.LPCs[0][:feature_point+1], self.LPCs[0][feature_point:])
+        _, break_point = self.ComputeLPCNonCollinearity()
+        self.broken_lpccurve = (self.LPCs[0][:break_point+1], self.LPCs[0][break_point:])
         broken_curves_distances = []
         for curve in self.broken_lpccurve:
             distance = curve[-1] - curve[0]
             broken_curves_distances.append(distance)
         return broken_curves_distances
-
-    def FindCollinearCurves(self):
-        broken_curves_distances = self.BreakLPCs()
-
-        new_curves_distances = []
-        for curve in self.LPCs[1:]:#since I want to consider the lpc clusters obtained in ExtendLPC()
-            distance = curve[-1] - curve[0]
-            new_curves_distances.append(distance)
-
-        collinearities = []
-        for i, b_distance in enumerate(broken_curves_distances):
-            for j, n_distance in enumerate(new_curves_distances):
-                # scalar_product = np.dot(b_distance, n_distance)
-                # norm_product = np.linalg.norm(b_distance)*np.linalg.norm(n_distance)
-                cosine = Collinearity(b_distance, n_distance)
-                collinearity = np.abs(cosine)#collinearity is the absolute value of cosine
-                collinearities.append((collinearity, (self.broken_lpccurve[i], self.LPCs[1:][j])))
-        sorted_collinearities = {k:v for (k,v) in collinearities}
-        print("nr coll: ", len(sorted_collinearities))
-        max_collinearities = sorted(list(sorted_collinearities.keys()), reverse=True)[:len(self.LPCs[1:])]
-        print("max collinearities: ", max_collinearities)
-        for value in max_collinearities:
-            self.collinear_clusters = sorted_collinearities[value]
-        
-
 
     # def MergeLPCPoints(self):
     #     closest_points = []
