@@ -99,32 +99,18 @@ def Clustering(centers, amps):
         all_clusters_in_ev.append(cluster) 
   return all_clusters_in_ev, y_pred
 
-def ExtendedLPC(all_clusters_in_ev, geotree):
-  new_all_curves_in_ev = []
-  for cluster in all_clusters_in_ev:
-    cluster.ExtendLPC(cluster.LPCs[0], geotree)#[0] because cluster.LPCs at this point is a list that contains a single list with the primary LPCs
-    curve = cluster.LPCs
-    # print("len: ", len(curve))
-    # curve = np.asarray(curve)
-    # print("len: ", len(curve))
-    new_all_curves_in_ev.append(curve)
-  return new_all_curves_in_ev
-
 def Collinearity(dist1, dist2):
   scalar_product = np.dot(dist1, dist2)
   norm_product = np.linalg.norm(dist1)*np.linalg.norm(dist2)
   cosine = scalar_product/norm_product
   return cosine
 
-def ComputeLPCDistances(curve):#compute vector distances only considering one lpc cluster
-  all_distances = []#inizializzo qua perchè voglio le distanze tra punti per un singolo cluster
-  for i in range(len(curve)):#loop sui singoli punti di un cluster di lpc
-    if i < (len(curve)-1):
-      distance = curve[i+1] - curve[i]
-      all_distances.append(distance)
-  return all_distances
-
-def FindCollinearCurves():
+def FindCollinearCurves(clusters):
+  for c in clusters:
+    if c.break_point != 0:
+      distances = c.BreakLPCs()
+      for d in distances:
+        cosine = Collinearity(d, c.LPC)
   return 1
 
 
@@ -132,7 +118,7 @@ if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
   eventNumbers = EventNumberList("./data/data_1-12/idlist_ccqe_mup.txt")
   # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
-  #selectedEvents = [eventNumbers[0]]#,eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
+  #selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
   #selectedEvents = [0,1,2,4,5,6,7,8,9]
   selectedEvents = [eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
 
@@ -149,21 +135,7 @@ if __name__ == '__main__':
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
   for i in range(len(selectedEvents)):
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
-    
-    # all_curves_in_ev = []
-    # for cluster in all_clusters_in_ev: 
-    #   curve = cluster.LPCs[0]
-    #   all_curves_in_ev.append(curve)
-
-    new_all_curves_in_ev = ExtendedLPC(all_clusters_in_ev, geom.fiducial)
-
-    # collinear_clusters = FindCollinearCurves(all_clusters_in_ev)
-
-    # sorted_non_collinearities, break_point = all_clusters_in_ev[1].FindBreakPoint()#new_all_curves_in_ev[0][0])
-    # print("break_point: ", break_point)
-
-
-
+  
     print("evento: ", selectedEvents[i])
 
     fig1 = plt.figure()
@@ -177,32 +149,18 @@ if __name__ == '__main__':
     ax.set_zlabel('z')
     ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
     
-    # for curves_in_clust in new_all_curves_in_ev:
-    #   for single_curve in curves_in_clust:
-    #     single_curve = np.asarray(single_curve)
-    #     ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
+    for cluster in all_clusters_in_ev:
+      single_curve = np.asarray(cluster.LPCs[0])
+      cluster.FindBreakPoint()
+      #ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
+      if cluster.break_point != 0:
+        cluster.BreakLPCs()
+        broken_curve = np.asarray(cluster.broken_lpccurve[0])
+        broken_curve2 = np.asarray(cluster.broken_lpccurve[1])
+        ax.scatter3D(broken_curve[:,0], broken_curve[:,1], broken_curve[:,2], color = 'green')
+        ax.scatter3D(broken_curve2[:,0], broken_curve2[:,1], broken_curve2[:,2], color = 'purple')
+        ax.scatter3D(single_curve[cluster.break_point][0], single_curve[cluster.break_point][1], single_curve[cluster.break_point][2], color = 'blue', marker='D')
     
-    # ax.scatter3D(np.asarray(new_all_curves_in_ev[1][0])[:, 0], np.asarray(new_all_curves_in_ev[1][0])[:,1], np.asarray(new_all_curves_in_ev[1][0])[:,2], color = 'red')
-    # print(len(new_all_curves_in_ev[1][0]))
-    # ax.scatter3D(np.asarray(new_all_curves_in_ev[1][0])[break_point,0], np.asarray(new_all_curves_in_ev[1][0])[break_point,1], np.asarray(new_all_curves_in_ev[1][0])[break_point,2], color = 'blue', marker = 'D')
-
-    for clust in all_clusters_in_ev:
-      single_curve = np.asarray(clust.LPCs[0])
-      clust.FindBreakPoint()
-      print(clust.break_point)
-      ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
-      if clust.break_point != 0:
-        ax.scatter3D(single_curve[clust.break_point][0], single_curve[clust.break_point][1], single_curve[clust.break_point][2], color = 'blue', marker='D')
-    
-    # for collinear_lpcs in collinear_clusters:
-    #   collinear_lpcs = np.asarray(collinear_lpcs)
-    #   ax.scatter3D(collinear_lpcs[:, 0], collinear_lpcs[:,1], collinear_lpcs[:,2], color = 'forestgreen')
-    # for collinear_clust in all_collinear_LPCs:
-    #   for collinear_LPCs in collinear_clust:
-    #     collinear_LPCs = np.asarray(collinear_LPCs)
-    #     print("collinear LPC: ", collinear_LPCs)
-    #     ax.scatter3D(collinear_LPCs[:, 0], collinear_LPCs[:,1], collinear_LPCs[:,2], color = 'forestgreen')
-        
     # fig2 = plt.figure()
     # for clust_collinearities in all_cluster_collinearities:
     #   plt.xlabel("lpc point number")

@@ -1,6 +1,6 @@
 import numpy as np
 from lpcclass import LPCSolver
-from lpc_analysis_new import Clustering, ComputeLPCDistances, Collinearity, defs, all_parameters
+from lpc_analysis_new import Clustering, Collinearity, defs, all_parameters
 
 class VoxelCluster:
     def __init__(self, _centers, _amps):
@@ -36,10 +36,19 @@ class VoxelCluster:
             for rem_clust in rem_clusters: 
                 self.ComputeLPC(rem_clust.centers, rem_clust.amps)
 
+    def ComputeLPCDistances(self):#compute vector distances only considering one lpc cluster
+        all_distances = []#inizializzo qua perchè voglio le distanze tra punti per un singolo cluster
+        for i in range(len(self.LPCs[0])):#loop sui singoli punti di un cluster di lpc
+            if i < (len(self.LPCs[0])-1):
+                distance = self.LPCs[0][i+1] - self.LPCs[0][i]
+                all_distances.append(distance)
+        return all_distances
+    
     def FindBreakPoint(self):
-        all_distances = ComputeLPCDistances(self.LPCs[0])
+        all_distances = self.ComputeLPCDistances()
         #t = all_parameters["stepsize"]
         #l = defs["voxel_size"]
+        self.break_point = 0
 
         all_non_collinearities = []
         all_norms = []
@@ -56,15 +65,13 @@ class VoxelCluster:
         #(starting from the second lpc point, where the first non-coll is computed)
         sorted_non_collinearities = {k:v for (k,v) in zip(range(1,len(self.LPCs[0])), all_non_collinearities)}
         for i,(k,v) in enumerate(sorted_non_collinearities.items()):
-            # print("non-coll: ", v)
-            # print("1-cos: ", v/norm_product)
-            if v == np.max(all_non_collinearities):#v/all_norms[i] > 0 and
+            if v/all_norms[i] > 0.094 and v == np.max(all_non_collinearities):#1-|cosPHI|>0.094 (i.e., PHI>20°) and it is the max value of non-collinearity
                 self.break_point = k
-            #else: self.break_point = 0
     
     def BreakLPCs(self):#I have to pass the FIRST cluster of lpc points in a voxel cluster
-        _, break_point = self.ComputeLPCNonCollinearity()
-        self.broken_lpccurve = (self.LPCs[0][:break_point+1], self.LPCs[0][break_point:])
+        #_, break_point = self.ComputeLPCNonCollinearity()
+        self.broken_lpccurve = (self.LPCs[0][:self.break_point+1], self.LPCs[0][self.break_point:])
+        print("broken: ", len(self.broken_lpccurve[0]))
         broken_curves_distances = []
         for curve in self.broken_lpccurve:
             distance = curve[-1] - curve[0]
