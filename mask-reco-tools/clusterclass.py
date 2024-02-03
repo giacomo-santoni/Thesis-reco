@@ -42,7 +42,7 @@ class VoxelCluster:
             if i < (len(self.LPCs[0])-1):
                 distance = self.LPCs[0][i+1] - self.LPCs[0][i]
                 all_distances.append(distance)
-        return all_distances
+        return all_distances#in a single LPC cluster
     
     def FindBreakPoint(self):
         all_distances = self.ComputeLPCDistances()
@@ -70,13 +70,8 @@ class VoxelCluster:
     
     def BreakLPCs(self):#I have to pass the FIRST cluster of lpc points in a voxel cluster
         #_, break_point = self.ComputeLPCNonCollinearity()
+        self.FindBreakPoint()
         self.broken_lpccurve = (self.LPCs[0][:self.break_point+1], self.LPCs[0][self.break_point:])
-        print("broken: ", len(self.broken_lpccurve[0]))
-        broken_curves_distances = []
-        for curve in self.broken_lpccurve:
-            distance = curve[-1] - curve[0]
-            broken_curves_distances.append(distance)
-        return broken_curves_distances
 
     # def MergeLPCPoints(self):
     #     closest_points = []

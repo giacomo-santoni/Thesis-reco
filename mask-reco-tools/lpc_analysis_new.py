@@ -105,14 +105,31 @@ def Collinearity(dist1, dist2):
   cosine = scalar_product/norm_product
   return cosine
 
-def FindCollinearCurves(clusters):
-  for c in clusters:
-    if c.break_point != 0:
-      distances = c.BreakLPCs()
-      for d in distances:
-        cosine = Collinearity(d, c.LPC)
-  return 1
+def ComputeTotalDistance(LPCclusters):
+    tot_distances = []
+    for curve in LPCclusters:
+      curve = np.asarray(curve)
+      tot_dist = curve[-1] - curve[0]#distance vector
+      tot_distances.append(tot_dist)
+    return tot_distances
 
+def FindCollinearCurves(clusters):
+  distances_in_ev = []
+  for c in clusters:
+    c.BreakLPCs()
+    if c.break_point != 0:
+      distances = ComputeTotalDistance(c.broken_lpccurve)
+    if len(c.LPCs)>1:
+      distances = ComputeTotalDistance(c.LPCs[1:])
+    elif c.break_point == 0:
+      distances = ComputeTotalDistance(c.LPCs)
+    distances_in_ev.append(distances)
+  print("dist: ", len(distances_in_ev))
+  for d in distances_in_ev:
+    for d2 in distances_in_ev[d:]:#cercare l'indice di d
+      if np.abs(Collinearity(d,d2)) == 1:
+        print(d)#devo dire: allora d e d2 sono collineari
+  return distances_in_ev
 
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
@@ -135,7 +152,10 @@ if __name__ == '__main__':
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
   for i in range(len(selectedEvents)):
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
-  
+
+    distances_in_ev = FindCollinearCurves(all_clusters_in_ev)
+    #print("dist: ", len(distances_in_ev))
+
     print("evento: ", selectedEvents[i])
 
     fig1 = plt.figure()
@@ -152,7 +172,7 @@ if __name__ == '__main__':
     for cluster in all_clusters_in_ev:
       single_curve = np.asarray(cluster.LPCs[0])
       cluster.FindBreakPoint()
-      #ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
+      ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
       if cluster.break_point != 0:
         cluster.BreakLPCs()
         broken_curve = np.asarray(cluster.broken_lpccurve[0])
