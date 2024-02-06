@@ -106,30 +106,47 @@ def Collinearity(dist1, dist2):
   return cosine
 
 def ComputeTotalDistance(LPCclusters):
-    tot_distances = []
-    for curve in LPCclusters:
-      curve = np.asarray(curve)
-      tot_dist = curve[-1] - curve[0]#distance vector
-      tot_distances.append(tot_dist)
-    return tot_distances
+  distance_with_cluster = []
+  for curve in LPCclusters:
+    curve = np.asarray(curve)
+    tot_dist = curve[-1] - curve[0]#distance vector
+    distance_with_cluster.append((tot_dist,curve))
+  #   tot_distances.append(tot_dist)
+  #   print("dist: ",tot_distances)
+  # distance_with_cluster = list(zip(tot_distances, LPCclusters))
+  # print("dict: ", distance_with_cluster)
+  return distance_with_cluster
 
 def FindCollinearCurves(clusters):
   distances_in_ev = []
+  all_distances_tuple = []
   for c in clusters:
     c.BreakLPCs()
     if c.break_point != 0:
-      distances = ComputeTotalDistance(c.broken_lpccurve)
+      distances_clust = ComputeTotalDistance(c.broken_lpccurve)
     if len(c.LPCs)>1:
-      distances = ComputeTotalDistance(c.LPCs[1:])
+      distances_clust = ComputeTotalDistance(c.LPCs[1:])
     elif c.break_point == 0:
-      distances = ComputeTotalDistance(c.LPCs)
-    distances_in_ev.append(distances)
-  print("dist: ", len(distances_in_ev))
-  for d in distances_in_ev:
-    for d2 in distances_in_ev[d:]:#cercare l'indice di d
-      if np.abs(Collinearity(d,d2)) == 1:
-        print(d)#devo dire: allora d e d2 sono collineari
-  return distances_in_ev
+      distances_clust = ComputeTotalDistance(c.LPCs)
+    distances_in_ev.append(distances_clust)
+  
+  for tuple in distances_in_ev:
+    for subtuple in tuple:
+      all_distances_tuple.append(subtuple)
+  #print("len: ", all_distances_tuple[0])
+  
+  all_collinears = []
+  for dist1,lpc1 in all_distances_tuple:
+    collinear_lpc = []
+    print(i)
+    dist1_index = next(i for i, t in enumerate(all_distances_tuple) if np.all(t[0]) == np.all(dist1))
+    collinear_lpc.append(lpc1)
+    for dist2,lpc2 in all_distances_tuple[dist1_index:]:
+      if np.abs(Collinearity(dist1,dist2)) > 0.906:#angle is less than 25°
+        collinear_lpc.append(lpc2)
+    all_collinears.append(collinear_lpc)
+  print("all: ", all_collinears)
+  return all_collinears
 
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
@@ -153,8 +170,8 @@ if __name__ == '__main__':
   for i in range(len(selectedEvents)):
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
 
-    distances_in_ev = FindCollinearCurves(all_clusters_in_ev)
-    #print("dist: ", len(distances_in_ev))
+    all_collinears = FindCollinearCurves(all_clusters_in_ev)
+    #print("coll: ", all_collinears)
 
     print("evento: ", selectedEvents[i])
 
@@ -168,7 +185,6 @@ if __name__ == '__main__':
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     ax.scatter3D(centers_all_ev[i][:, 0], centers_all_ev[i][:,1], centers_all_ev[i][:,2], c = y_pred, cmap = 'cividis',s=15)
-    
     for cluster in all_clusters_in_ev:
       single_curve = np.asarray(cluster.LPCs[0])
       cluster.FindBreakPoint()
@@ -181,11 +197,10 @@ if __name__ == '__main__':
         ax.scatter3D(broken_curve2[:,0], broken_curve2[:,1], broken_curve2[:,2], color = 'purple')
         ax.scatter3D(single_curve[cluster.break_point][0], single_curve[cluster.break_point][1], single_curve[cluster.break_point][2], color = 'blue', marker='D')
     
-    # fig2 = plt.figure()
-    # for clust_collinearities in all_cluster_collinearities:
-    #   plt.xlabel("lpc point number")
-    #   plt.ylabel("(1-|cos$\Phi$|)")
-    #   plt.scatter(clust_collinearities.keys(), clust_collinearities.values())
+    for coll_lpcs in all_collinears:
+      ax.scatter3D(coll_lpcs[0][:,0], coll_lpcs[0][:,1], coll_lpcs[0][:,2], color = 'green')
+      # ax.scatter3D(coll_lpcs[1][:,0], coll_lpcs[1][:,1], coll_lpcs[1][:,2], color = 'blue')
+      # ax.scatter3D(coll_lpcs[2][:,0], coll_lpcs[2][:,1], coll_lpcs[2][:,2], color = 'black')
     
     plt.title(selectedEvents[i])
     plt.legend()
