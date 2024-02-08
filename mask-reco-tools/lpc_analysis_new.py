@@ -104,49 +104,24 @@ def Collinearity(dist1, dist2):
   norm_product = np.linalg.norm(dist1)*np.linalg.norm(dist2)
   cosine = scalar_product/norm_product
   return cosine
+        
+def HoughTransform(points, theta_resolution=2, rho_resolution=defs["voxel_size"]):
+  #theta and rho limits
+  max_rho = int(np.ceil(np.sqrt(235**2 + 735**2)))#half the diagonal
+  thetas = np.deg2rad(np.arange(0,360,theta_resolution))
+  rhos = np.arange(-max_rho, max_rho, rho_resolution)
 
-def ComputeTotalDistance(LPCclusters):
-  distance_with_cluster = []
-  for curve in LPCclusters:
-    curve = np.asarray(curve)
-    tot_dist = curve[-1] - curve[0]#distance vector
-    distance_with_cluster.append((tot_dist,curve))
-  #   tot_distances.append(tot_dist)
-  #   print("dist: ",tot_distances)
-  # distance_with_cluster = list(zip(tot_distances, LPCclusters))
-  # print("dict: ", distance_with_cluster)
-  return distance_with_cluster
-
-def FindCollinearCurves(clusters):
-  distances_in_ev = []
-  all_distances_tuple = []
-  for c in clusters:
-    c.BreakLPCs()
-    if c.break_point != 0:
-      distances_clust = ComputeTotalDistance(c.broken_lpccurve)
-    if len(c.LPCs)>1:
-      distances_clust = ComputeTotalDistance(c.LPCs[1:])
-    elif c.break_point == 0:
-      distances_clust = ComputeTotalDistance(c.LPCs)
-    distances_in_ev.append(distances_clust)
+  accumulator = np.zeros((len(rhos), len(thetas)), dtype=np.uint64)
   
-  for tuple in distances_in_ev:
-    for subtuple in tuple:
-      all_distances_tuple.append(subtuple)
-  #print("len: ", all_distances_tuple[0])
-  
-  all_collinears = []
-  for dist1,lpc1 in all_distances_tuple:
-    collinear_lpc = []
-    print(i)
-    dist1_index = next(i for i, t in enumerate(all_distances_tuple) if np.all(t[0]) == np.all(dist1))
-    collinear_lpc.append(lpc1)
-    for dist2,lpc2 in all_distances_tuple[dist1_index:]:
-      if np.abs(Collinearity(dist1,dist2)) > 0.906:#angle is less than 25°
-        collinear_lpc.append(lpc2)
-    all_collinears.append(collinear_lpc)
-  print("all: ", all_collinears)
-  return all_collinears
+  par_points = []
+  for coord1,coord2 in points:
+    for theta_index, theta in enumerate(thetas):
+      rho = coord1 * np.cos(theta) + coord2 * np.sin(theta)
+      rho_index = np.argmin(np.abs(rhos - rho))
+      print(rho_index,theta_index)
+      accumulator[rho_index, theta_index] += 1
+      par_points.append((rho_index,theta_index,coord1,coord2))
+  return accumulator, rhos, thetas, par_points
 
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
@@ -170,9 +145,6 @@ if __name__ == '__main__':
   for i in range(len(selectedEvents)):
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
 
-    all_collinears = FindCollinearCurves(all_clusters_in_ev)
-    #print("coll: ", all_collinears)
-
     print("evento: ", selectedEvents[i])
 
     fig1 = plt.figure()
@@ -189,72 +161,55 @@ if __name__ == '__main__':
       single_curve = np.asarray(cluster.LPCs[0])
       cluster.FindBreakPoint()
       ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
-      if cluster.break_point != 0:
-        cluster.BreakLPCs()
-        broken_curve = np.asarray(cluster.broken_lpccurve[0])
-        broken_curve2 = np.asarray(cluster.broken_lpccurve[1])
-        ax.scatter3D(broken_curve[:,0], broken_curve[:,1], broken_curve[:,2], color = 'green')
-        ax.scatter3D(broken_curve2[:,0], broken_curve2[:,1], broken_curve2[:,2], color = 'purple')
-        ax.scatter3D(single_curve[cluster.break_point][0], single_curve[cluster.break_point][1], single_curve[cluster.break_point][2], color = 'blue', marker='D')
-    
-    for coll_lpcs in all_collinears:
-      ax.scatter3D(coll_lpcs[0][:,0], coll_lpcs[0][:,1], coll_lpcs[0][:,2], color = 'green')
-      # ax.scatter3D(coll_lpcs[1][:,0], coll_lpcs[1][:,1], coll_lpcs[1][:,2], color = 'blue')
-      # ax.scatter3D(coll_lpcs[2][:,0], coll_lpcs[2][:,1], coll_lpcs[2][:,2], color = 'black')
-    
+      # if cluster.break_point != 0:
+      #   cluster.BreakLPCs()
+      #   broken_curve = np.asarray(cluster.broken_lpccurve[0])
+      #   broken_curve2 = np.asarray(cluster.broken_lpccurve[1])
+      #   ax.scatter3D(broken_curve[:,0], broken_curve[:,1], broken_curve[:,2], color = 'green')
+      #   ax.scatter3D(broken_curve2[:,0], broken_curve2[:,1], broken_curve2[:,2], color = 'purple')
+      #   ax.scatter3D(single_curve[cluster.break_point][0], single_curve[cluster.break_point][1], single_curve[cluster.break_point][2], color = 'blue', marker='D')
     plt.title(selectedEvents[i])
     plt.legend()
+
+    fig3 = plt.figure()
+    all_lpcs = np.concatenate([cluster.LPCs[0] for cluster in all_clusters_in_ev])
+    pointsYZ = zip(all_lpcs[:,1],all_lpcs[:,2])
+    pointsXZ = zip(all_lpcs[:,0],all_lpcs[:,2])
+    accumulator, rhos, thetas, indices_points = HoughTransform(pointsYZ)
+
+    global_max_indices = np.argwhere(accumulator == np.max(accumulator))
+    # print(global_max_indices)
+    # print(accumulator[global_max_indices[1][0],global_max_indices[1][1]])
+    # for index in global_max_indices:
+    #   print(index)
+    #   accumulator_no_max = accumulator[:index:,:index:]
+    #   print(np.max(accumulator_no_max))
+    #   local_max_indices = np.argwhere(accumulator == np.max(accumulator_no_max))
+    # all_max_indices = np.concatenate((global_max_indices, local_max_indices))
+
+    all_collinear_pt = []
+    for index in global_max_indices:
+      collinear_points = []
+      for t in indices_points:
+        if t[0] == index[0] and t[1] == index[1]:
+          point = np.asarray([t[2],t[3]])
+          collinear_points.append(point)
+      all_collinear_pt.append(collinear_points)
+
+    plt.imshow(accumulator, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
+    plt.xlabel('Theta')
+    plt.ylabel('Rho')
+    plt.colorbar()
+
+    fig2 = plt.figure()
+    for cluster in all_clusters_in_ev:
+      single_curve = np.asarray(cluster.LPCs[0])
+      plt.scatter(single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
+    for collinear_points in all_collinear_pt:
+      collinear_points = np.asarray(collinear_points)
+      plt.scatter(collinear_points[:,0], collinear_points[:,1], cmap = 'cividis')
+    plt.title("y-z plane")
+    plt.xlabel("y")
+    plt.ylabel("z")
+
     plt.show()
-
-  """only amps"""
-  # PlotClusters(selectedEvents, fpkl1, fpkl2, geom.fiducial, applyGradient=False)
-
-  """gradient amps"""
-  # PlotClusters(selectedEvents, fpkl1, fpkl2, geom.fiducial, applyGradient=True)
-
-
-
-
-  # def FindCollinearCurves(clusters):
-  # #broken_curves_distances = self.BreakLPCs()
-
-  # # new_curves_distances = []
-  # # for curve in self.LPCs[1:]:#since I want to consider the lpc clusters obtained in ExtendLPC()
-  # #     distance = curve[-1] - curve[0]
-  # #     new_curves_distances.append(distance)
-
-  # # collinearities = []
-  # # for i, b_distance in enumerate(broken_curves_distances):
-  # #     for j, n_distance in enumerate(new_curves_distances):
-  # #         # scalar_product = np.dot(b_distance, n_distance)
-  # #         # norm_product = np.linalg.norm(b_distance)*np.linalg.norm(n_distance)
-  # #         cosine = Collinearity(b_distance, n_distance)
-  # #         collinearity = np.abs(cosine)#collinearity is the absolute value of cosine
-  # #         collinearities.append((collinearity, (self.broken_lpccurve[i], self.LPCs[1:][j])))
-  # # sorted_collinearities = {k:v for (k,v) in collinearities}
-  # # print("nr coll: ", len(sorted_collinearities))
-  # # max_collinearities = sorted(list(sorted_collinearities.keys()), reverse=True)[:len(self.LPCs[1:])]
-  # # print("max collinearities: ", max_collinearities)
-  # # for value in max_collinearities:
-  # #     self.collinear_clusters = sorted_collinearities[value]
-
-  # all_clusters_distances = []
-  # for c in clusters:
-  #   print("lunghezza: ", len(c.LPCs[0]))
-  #   print(c.LPCs[1])
-  #   distance_vector = c.LPCs[0][-1] - c.LPCs[0][0]
-  #   all_clusters_distances.append(distance_vector)
-  
-  # collinearities = []
-  # for i, distance in enumerate(all_clusters_distances[1:]):
-  #     cosine = Collinearity(distance, all_clusters_distances[0])
-  #     collinearity = np.abs(cosine)
-  #     collinearities.append((collinearity, (clusters[0].LPCs[0], clusters[i+1].LPCs[0])))
-  # sorted_collinearities = {k:v for (k,v) in collinearities}
-  # print("nr coll: ", len(sorted_collinearities))
-  # max_collinearities = np.max(sorted(list(sorted_collinearities.keys()), reverse=True))
-  # print("max collinearities: ", max_collinearities)
-  # #for value in max_collinearities:
-  # collinear_clusters = sorted_collinearities[max_collinearities]
-  # print(len(collinear_clusters))
-  # return collinear_clusters
