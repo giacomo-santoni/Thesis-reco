@@ -137,6 +137,7 @@ def FindNextMaximum(matrix):
 def is_point_in_array(point, array):
     return any(np.all(point == i) for i in array)
 
+
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
   eventNumbers = EventNumberList("./data/data_1-12/idlist_ccqe_mup.txt")
@@ -218,20 +219,40 @@ if __name__ == '__main__':
       all_collinear_pt.append(collinear_points)
     print(len(all_collinear_pt))
 
-    # label = []
-    # for i, collinear_points in enumerate(all_collinear_pt):
-    #   #print(collinear_points)
-    #   for point in list(pointsYZ):
-    #     print("point: ", point)
-    #     if is_point_in_array(point, collinear_points):
-    #       print('ok')
-    #       label.append(i)
-    # print(label)
+    import scipy as scp
+    neighborhood_size = 5
+    threshold = 10
+    data_max = scp.ndimage.maximum_filter(accumulator, neighborhood_size)
+    print("max: ", data_max)
+    maxima = (accumulator == data_max)
+    data_min = scp.ndimage.minimum_filter(accumulator, neighborhood_size)
+    print("min: ", data_min)
+    diff = ((data_max - data_min) > threshold)
+    maxima[diff == 0] = 0
+    print(maxima)
+
+    labeled, num_objects = scp.ndimage.label(maxima)
+    #print("lab: ",num_objects)
+    slices = scp.ndimage.find_objects(labeled)
+    print("slices: ", slices)
+    x, y = [], []
+    for dy,dx in slices:
+        print(dy,dx)
+        print(dx.start, dx.stop)
+        x_center = (dx.start + dx.stop - 1)/2
+        x.append(x_center)
+        y_center = (dy.start + dy.stop - 1)/2    
+        y.append(y_center)
+        print("indices_local_max: ", (x,y))
 
     plt.imshow(accumulator, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
     plt.xlabel('theta')
     plt.ylabel('rho')
     plt.colorbar()
+
+   #plt.autoscale(False)
+    plt.plot(np.rad2deg(thetas[6]),rhos[15], 'ro')
+    plt.savefig('/Users/giacomosantoni/Desktop/result.png', bbox_inches = 'tight')
 
     
     fig2 = plt.figure()
@@ -246,8 +267,8 @@ if __name__ == '__main__':
     plt.scatter(all_collinear_pt[1][:,1], all_collinear_pt[1][:,0], color = 'blue')
     all_collinear_pt[2] = np.asarray(all_collinear_pt[2])
     plt.scatter(all_collinear_pt[2][:,1], all_collinear_pt[2][:,0], color = 'grey')
-    # all_collinear_pt[3] = np.asarray(all_collinear_pt[3])
-    # plt.scatter(all_collinear_pt[3][:,1], all_collinear_pt[3][:,0], color = 'yellow')
+    all_collinear_pt[3] = np.asarray(all_collinear_pt[3])
+    plt.scatter(all_collinear_pt[3][:,1], all_collinear_pt[3][:,0], color = 'yellow')
     plt.ylim(-400,400)
     plt.xlim(-200,200)
 
