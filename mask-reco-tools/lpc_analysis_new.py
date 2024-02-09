@@ -105,7 +105,7 @@ def Collinearity(dist1, dist2):
   cosine = scalar_product/norm_product
   return cosine
         
-def HoughTransform(points, theta_resolution=2, rho_resolution=defs["voxel_size"]):
+def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size"]):
   #theta and rho limits
   max_rho = int(np.ceil(np.sqrt(235**2 + 735**2)))#half the diagonal
   thetas = np.deg2rad(np.arange(0,360,theta_resolution))
@@ -118,10 +118,24 @@ def HoughTransform(points, theta_resolution=2, rho_resolution=defs["voxel_size"]
     for theta_index, theta in enumerate(thetas):
       rho = coord1 * np.cos(theta) + coord2 * np.sin(theta)
       rho_index = np.argmin(np.abs(rhos - rho))
-      print(rho_index,theta_index)
+      #print(rho_index,theta_index)
       accumulator[rho_index, theta_index] += 1
       par_points.append((rho_index,theta_index,coord1,coord2))
   return accumulator, rhos, thetas, par_points
+
+def FindNextMaximum(matrix):
+    all_max = []
+    for _ in range(2):
+      max = np.max(matrix)
+      flat_matrix = matrix.flatten()
+      matrix = flat_matrix[flat_matrix < max]
+      next_max = np.max(matrix) 
+      print("max: ", next_max)
+      all_max.append(next_max)
+    return all_max
+
+def is_point_in_array(point, array):
+    return any(np.all(point == i) for i in array)
 
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
@@ -178,38 +192,74 @@ if __name__ == '__main__':
     accumulator, rhos, thetas, indices_points = HoughTransform(pointsYZ)
 
     global_max_indices = np.argwhere(accumulator == np.max(accumulator))
-    # print(global_max_indices)
-    # print(accumulator[global_max_indices[1][0],global_max_indices[1][1]])
-    # for index in global_max_indices:
-    #   print(index)
-    #   accumulator_no_max = accumulator[:index:,:index:]
-    #   print(np.max(accumulator_no_max))
-    #   local_max_indices = np.argwhere(accumulator == np.max(accumulator_no_max))
-    # all_max_indices = np.concatenate((global_max_indices, local_max_indices))
+    all_max = FindNextMaximum(accumulator)
+    print(all_max[0], all_max[1])
+    local_max_indices = np.argwhere(accumulator == all_max[0])
+    local_max_indices2 = np.argwhere(accumulator == all_max[1])
+
+    print("global: ", global_max_indices)
+    print("local: ", local_max_indices)
+    print("local2: ", local_max_indices2)
+    all_indices = np.concatenate((global_max_indices,local_max_indices, local_max_indices2))
+    print("all: ", all_indices)
+
+    print("values: ", rhos[global_max_indices[0][0]], np.rad2deg(thetas[global_max_indices[0][1]]))
+    print(np.max(accumulator))
+    print(accumulator[global_max_indices[0][0],global_max_indices[0][1]])
+    #print(accumulator)
 
     all_collinear_pt = []
-    for index in global_max_indices:
+    for index in all_indices:
       collinear_points = []
       for t in indices_points:
         if t[0] == index[0] and t[1] == index[1]:
           point = np.asarray([t[2],t[3]])
           collinear_points.append(point)
       all_collinear_pt.append(collinear_points)
+    print(len(all_collinear_pt))
+
+    # label = []
+    # for i, collinear_points in enumerate(all_collinear_pt):
+    #   #print(collinear_points)
+    #   for point in list(pointsYZ):
+    #     print("point: ", point)
+    #     if is_point_in_array(point, collinear_points):
+    #       print('ok')
+    #       label.append(i)
+    # print(label)
 
     plt.imshow(accumulator, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
-    plt.xlabel('Theta')
-    plt.ylabel('Rho')
+    plt.xlabel('theta')
+    plt.ylabel('rho')
     plt.colorbar()
 
+    
     fig2 = plt.figure()
+    ax = fig2.add_subplot()
     for cluster in all_clusters_in_ev:
       single_curve = np.asarray(cluster.LPCs[0])
-      plt.scatter(single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
-    for collinear_points in all_collinear_pt:
-      collinear_points = np.asarray(collinear_points)
-      plt.scatter(collinear_points[:,0], collinear_points[:,1], cmap = 'cividis')
+      ax.scatter(single_curve[:,2], single_curve[:,1], color = 'red')#allLPCpoints
+    #for collinear_points in all_collinear_pt:
+    all_collinear_pt[0] = np.asarray(all_collinear_pt[0])
+    ax.scatter(all_collinear_pt[0][:,1], all_collinear_pt[0][:,0], color = 'green')
+    all_collinear_pt[1] = np.asarray(all_collinear_pt[1])
+    plt.scatter(all_collinear_pt[1][:,1], all_collinear_pt[1][:,0], color = 'blue')
+    all_collinear_pt[2] = np.asarray(all_collinear_pt[2])
+    plt.scatter(all_collinear_pt[2][:,1], all_collinear_pt[2][:,0], color = 'grey')
+    # all_collinear_pt[3] = np.asarray(all_collinear_pt[3])
+    # plt.scatter(all_collinear_pt[3][:,1], all_collinear_pt[3][:,0], color = 'yellow')
+    plt.ylim(-400,400)
+    plt.xlim(-200,200)
+
+    from matplotlib.patches import Circle
+
+    center = (0, 0)
+    radius = 220
+    circle = Circle(center, radius,facecolor = None, edgecolor = 'blue',alpha=0.1)
+    ax.add_patch(circle)
+    
     plt.title("y-z plane")
-    plt.xlabel("y")
-    plt.ylabel("z")
+    plt.xlabel("z")
+    plt.ylabel("y")
 
     plt.show()
