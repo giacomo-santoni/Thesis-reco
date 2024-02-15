@@ -116,6 +116,7 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
   accumulator = np.zeros((len(rhos), len(thetas)), dtype=np.uint64)
   
   par_points = []
+  #coord1=y, coord2=z
   for coord1,coord2 in points:
     for theta_index, theta in enumerate(thetas):
       rho = coord1 * np.cos(theta) + coord2 * np.sin(theta)
@@ -126,7 +127,42 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
 
 def FindLocalMaxima(accumulator):
   local_max_indices = sk.feature.peak_local_max(accumulator, min_distance=4, threshold_rel = 0.6, exclude_border=False)
-  return local_max_indices
+  rho_thetas_max = []
+  for i in local_max_indices:
+    theta_max = thetas[i[1]]
+    rho_max = rhos[i[0]]
+    rho_thetas_max.append((rho_max, theta_max))
+  return local_max_indices, rho_thetas_max
+
+def FindClosestToLinePoints(points, rho_thetas_max):
+  all_collinear_points = []
+  collinear_points1 = []
+  collinear_points2 = []
+  n=0
+  for coord1,coord2 in points:
+    n+=1
+    dist_point_to_lines = []
+    for rho,theta in rho_thetas_max:
+      d = abs((np.cos(theta)*coord1 + np.sin(theta)*coord2 - rho)) / (np.sqrt(np.cos(theta)*np.cos(theta) + np.sin(theta)*np.sin(theta)))
+      dist_point_to_lines.append((d,rho,theta))
+    min_dist = np.min(np.asarray(dist_point_to_lines)[:,0])
+    
+    closest_line = []
+    for tuple in dist_point_to_lines: 
+      if tuple[0] == min_dist and tuple[0]<45:
+        closest_line = (tuple[1],tuple[2])
+    print("closest line: ", n, closest_line)
+
+    if closest_line == rho_thetas_max[0]:
+      print('ok')
+      collinear_points1.append((coord1,coord2))
+    elif len(rho_thetas_max)>1 and closest_line == rho_thetas_max[1]:
+      collinear_points2.append((coord1,coord2))
+    
+  all_collinear_points.append(collinear_points1)
+  if len(rho_thetas_max)>1:
+    all_collinear_points.append(collinear_points2)
+  return all_collinear_points
 
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
@@ -152,6 +188,7 @@ if __name__ == '__main__':
 
     print("evento: ", selectedEvents[i])
 
+    #************************3D PLOT****************************
     fig1 = plt.figure()
     ax = fig1.add_subplot(projection='3d')
     scalesz = np.max(recodata_all_ev[i].shape) * 12 / 1.6
@@ -175,37 +212,24 @@ if __name__ == '__main__':
       #   ax.scatter3D(single_curve[cluster.break_point][0], single_curve[cluster.break_point][1], single_curve[cluster.break_point][2], color = 'blue', marker='D')
     plt.title(selectedEvents[i])
     plt.legend()
+    #************************************************************
 
+    #**************************ACCUMULATOR***************************
     fig3 = plt.figure()
     all_lpcs = np.concatenate([cluster.LPCs[0] for cluster in all_clusters_in_ev])
-    pointsYZ = zip(all_lpcs[:,1],all_lpcs[:,2])
-    pointsXZ = zip(all_lpcs[:,0],all_lpcs[:,2])
+    pointsYZ = list(zip(all_lpcs[:,1],all_lpcs[:,2]))
+    pointsXZ = list(zip(all_lpcs[:,0],all_lpcs[:,2]))
     accumulator, rhos, thetas, indices_points = HoughTransform(pointsYZ)
 
-    local_max_indices = FindLocalMaxima(accumulator)
+    local_max_indices, rho_thetas_max = FindLocalMaxima(accumulator)
     print("indices_local_max (rows, columns): ", local_max_indices)
-    
+    print("rhos thetas max: ", rho_thetas_max)
+
     for i in local_max_indices:
       local_max_values = accumulator[i[0],i[1]]
       print("max_values: ", local_max_values)
       print("theta: ", np.rad2deg(thetas[i[1]]))
       print("rho: ", rhos[i[0]])
-
-    all_collinear_pt = []
-    for index in local_max_indices:
-      collinear_points = []
-      print("altro indice: ", index)
-      for t in indices_points:
-        if t[0] == index[0] and t[1] == index[1]:
-          print(t)
-          point = np.asarray([t[2],t[3]])
-          #print(point)
-          collinear_points.append(point)
-      all_collinear_pt.append(collinear_points)
-    # print("primo: ", all_collinear_pt[0], len(all_collinear_pt[0]))
-    # print("secondo: ", all_collinear_pt[1], len(all_collinear_pt[1]))
-    # print("terzo: ", all_collinear_pt[2], len(all_collinear_pt[2]))
-    #print("quarto: ", all_collinear_pt[3], len(all_collinear_pt[3]))
     
     plt.imshow(accumulator, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
     plt.xlabel('theta')
@@ -214,7 +238,11 @@ if __name__ == '__main__':
 
     for i in local_max_indices:
       plt.plot(np.rad2deg(thetas[i[1]]),rhos[i[0]], 'ro')
-
+    #*********************************************************************
+    
+    #***********************************2D PLOT***************************
+    all_collinear_points = FindClosestToLinePoints(pointsYZ, rho_thetas_max)
+    #print("collinear points: ", all_collinear_points)
 
     fig2 = plt.figure()
     ax = fig2.add_subplot()
@@ -222,57 +250,24 @@ if __name__ == '__main__':
       single_curve = np.asarray(cluster.LPCs[0])
       ax.scatter(single_curve[:,2], single_curve[:,1], color = 'red')#allLPCpoints
     #for collinear_points in all_collinear_pt:
-    all_collinear_pt[0] = np.asarray(all_collinear_pt[0])
-    ax.scatter(all_collinear_pt[0][:,1], all_collinear_pt[0][:,0], color = 'green')
-    if len(all_collinear_pt)>1:
-      all_collinear_pt[1] = np.asarray(all_collinear_pt[1])
-      plt.scatter(all_collinear_pt[1][:,1], all_collinear_pt[1][:,0], color = 'blue')
-    # all_collinear_pt[2] = np.asarray(all_collinear_pt[2])
-    # plt.scatter(all_collinear_pt[2][:,1], all_collinear_pt[2][:,0], color = 'grey')
-    # all_collinear_pt[3] = np.asarray(all_collinear_pt[3])
-    # plt.scatter(all_collinear_pt[3][:,1], all_collinear_pt[3][:,0], color = 'yellow')
-    # all_collinear_pt[4] = np.asarray(all_collinear_pt[4])
-    # # plt.scatter(all_collinear_pt[4][:,1], all_collinear_pt[4][:,0], color = 'black')
-    # # all_collinear_pt[5] = np.asarray(all_collinear_pt[5])
-    # # plt.scatter(all_collinear_pt[5][:,1], all_collinear_pt[5][:,0], color = 'silver')
-    # # all_collinear_pt[6] = np.asarray(all_collinear_pt[6])
-    # # plt.scatter(all_collinear_pt[6][:,1], all_collinear_pt[6][:,0], color = 'brown')
-    # # all_collinear_pt[7] = np.asarray(all_collinear_pt[7])
-    # # plt.scatter(all_collinear_pt[7][:,1], all_collinear_pt[7][:,0], color = 'aqua')
-    # all_collinear_pt[8] = np.asarray(all_collinear_pt[8])
-    # plt.scatter(all_collinear_pt[8][:,1], all_collinear_pt[8][:,0], color = 'chartreuse')
-    # all_collinear_pt[9] = np.asarray(all_collinear_pt[9])
-    # plt.scatter(all_collinear_pt[9][:,1], all_collinear_pt[9][:,0], color = 'indigo')
-    # all_collinear_pt[10] = np.asarray(all_collinear_pt[10])
-    # plt.scatter(all_collinear_pt[10][:,1], all_collinear_pt[10][:,0], color = 'lightpink')
-    # all_collinear_pt[11] = np.asarray(all_collinear_pt[11])
-    # plt.scatter(all_collinear_pt[11][:,1], all_collinear_pt[11][:,0], color = 'magenta')
-    # all_collinear_pt[12] = np.asarray(all_collinear_pt[12])
-    # plt.scatter(all_collinear_pt[12][:,1], all_collinear_pt[12][:,0], color = 'darkkhaki')
-    # all_collinear_pt[13] = np.asarray(all_collinear_pt[3])
-    # plt.scatter(all_collinear_pt[13][:,1], all_collinear_pt[13][:,0], color = 'coral')
+    all_collinear_points[0] = np.asarray(all_collinear_points[0])
+    ax.scatter(all_collinear_points[0][:,1], all_collinear_points[0][:,0], color = 'green')
+    if len(all_collinear_points)>1:
+      all_collinear_points[1] = np.asarray(all_collinear_points[1])
+      plt.scatter(all_collinear_points[1][:,1], all_collinear_points[1][:,0], color = 'blue')
     plt.ylim(-700,700)
     plt.xlim(-200,200)
     plt.gca().set_aspect('equal', adjustable='box')
 
-    theta1 = thetas[local_max_indices[0][1]]
-    #print(np.rad2deg(theta1))
-    rho1 = rhos[local_max_indices[0][0]]
-    #print(rho1)
-    #for i in local_max_indices:
-    y = np.linspace(-700, 700, 10000)
-    #y = -(np.cos(theta1)/np.sin(theta1))*x + rho1/np.sin(theta1)
-    z = -(np.cos(theta1)/np.sin(theta1))*y + rho1/np.sin(theta1)
-    plt.plot(z, y)
-
-    if len(local_max_indices)>1:
-      theta2 = thetas[local_max_indices[1][1]]
-      #print(np.rad2deg(theta2))
-      rho2 = rhos[local_max_indices[1][0]]
-      #print(rho2)
-      y = np.linspace(-700, 700, 10000)
-      z = -(np.cos(theta2)/np.sin(theta2))*y + rho2/np.sin(theta2)
-      plt.plot(z, y)
+    # for rho,theta in rho_thetas_max:
+    #   y = np.linspace(-700, 700, 10000)
+    #   z = -(np.cos(theta)/np.sin(theta))*y + rho/np.sin(theta)
+    #   plt.plot(z, y)
+    
+    fit = np.polyfit(all_collinear_points[0][:,1], all_collinear_points[0][:,0], deg=1)
+    print("fit: ", fit)
+    trendfit = np.poly1d(fit)
+    plt.plot(trendfit(fit))
 
     # from matplotlib.patches import Circle
 
@@ -280,9 +275,10 @@ if __name__ == '__main__':
     # radius = 220
     # circle = Circle(center, radius,facecolor = None, edgecolor = 'blue',alpha=0.1)
     # ax.add_patch(circle)
-    
+  
     plt.title("y-z plane")
-    plt.xlabel("z")
-    plt.ylabel("y")
+    plt.xlabel("z (mm)")
+    plt.ylabel("y (mm)")
+    #*********************************************************************
 
     plt.show()
