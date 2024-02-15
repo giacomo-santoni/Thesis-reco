@@ -124,31 +124,8 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
       par_points.append((rho_index,theta_index,coord1,coord2))
   return accumulator, rhos, thetas, par_points
 
-def FindLocalMaxima(accumulator, neighborhood_size = 10, threshold = 6):
-  data_max = scp.ndimage.maximum_filter(accumulator, neighborhood_size)
-  maxima = (accumulator == data_max)
-  #data_min = scp.ndimage.minimum_filter(accumulator, neighborhood_size)
-  diff = (data_max > threshold)
-  maxima[diff == 0] = 0
-
-  labeled, num_objects = scp.ndimage.label(maxima)
-  slices = scp.ndimage.find_objects(labeled)
-  local_max_indices = []
-  for dy,dx in slices:#dy sono le righe (rho), dx sono le colonne (theta)
-      subarray = accumulator[dy, dx]
-      idx_max = np.unravel_index(np.argmax(subarray), subarray.shape)
-      local_max_indices.append((dy.start + idx_max[0], dx.start + idx_max[1]))
-
-  #2
-  # Comparison between image_max and im to find the coordinates of local maxima
-  # local_max_indices = sk.feature.peak_local_max(accumulator, min_distance=5)
- 
-  #3
-  # window_size = (5, 5)
-  # local_max = scp.ndimage.maximum_filter(accumulator, size=window_size)
-  # local_max_indices = np.argwhere((local_max == accumulator) & (local_max > 10))
-
-  print(local_max_indices)
+def FindLocalMaxima(accumulator):
+  local_max_indices = sk.feature.peak_local_max(accumulator, min_distance=4, threshold_rel = 0.6, exclude_border=False)
   return local_max_indices
 
 if __name__ == '__main__':
@@ -247,8 +224,9 @@ if __name__ == '__main__':
     #for collinear_points in all_collinear_pt:
     all_collinear_pt[0] = np.asarray(all_collinear_pt[0])
     ax.scatter(all_collinear_pt[0][:,1], all_collinear_pt[0][:,0], color = 'green')
-    all_collinear_pt[1] = np.asarray(all_collinear_pt[1])
-    plt.scatter(all_collinear_pt[1][:,1], all_collinear_pt[1][:,0], color = 'blue')
+    if len(all_collinear_pt)>1:
+      all_collinear_pt[1] = np.asarray(all_collinear_pt[1])
+      plt.scatter(all_collinear_pt[1][:,1], all_collinear_pt[1][:,0], color = 'blue')
     # all_collinear_pt[2] = np.asarray(all_collinear_pt[2])
     # plt.scatter(all_collinear_pt[2][:,1], all_collinear_pt[2][:,0], color = 'grey')
     # all_collinear_pt[3] = np.asarray(all_collinear_pt[3])
@@ -276,6 +254,25 @@ if __name__ == '__main__':
     plt.ylim(-700,700)
     plt.xlim(-200,200)
     plt.gca().set_aspect('equal', adjustable='box')
+
+    theta1 = thetas[local_max_indices[0][1]]
+    #print(np.rad2deg(theta1))
+    rho1 = rhos[local_max_indices[0][0]]
+    #print(rho1)
+    #for i in local_max_indices:
+    y = np.linspace(-700, 700, 10000)
+    #y = -(np.cos(theta1)/np.sin(theta1))*x + rho1/np.sin(theta1)
+    z = -(np.cos(theta1)/np.sin(theta1))*y + rho1/np.sin(theta1)
+    plt.plot(z, y)
+
+    if len(local_max_indices)>1:
+      theta2 = thetas[local_max_indices[1][1]]
+      #print(np.rad2deg(theta2))
+      rho2 = rhos[local_max_indices[1][0]]
+      #print(rho2)
+      y = np.linspace(-700, 700, 10000)
+      z = -(np.cos(theta2)/np.sin(theta2))*y + rho2/np.sin(theta2)
+      plt.plot(z, y)
 
     # from matplotlib.patches import Circle
 
