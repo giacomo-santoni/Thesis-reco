@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 import scipy as scp
 import skimage as sk
+import scipy as scp
 
 import clusterclass
 from recodisplay import load_pickle
@@ -116,13 +117,13 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
   accumulator = np.zeros((len(rhos), len(thetas)), dtype=np.uint64)
   
   par_points = []
-  #coord1=y, coord2=z
+  #coord1=z, coord2=y
   for coord1,coord2 in points:
     for theta_index, theta in enumerate(thetas):
-      rho = coord1 * np.cos(theta) + coord2 * np.sin(theta)
+      rho = coord2 * np.cos(theta) + coord1 * np.sin(theta)
       rho_index = np.argmin(np.abs(rhos - rho))
       accumulator[rho_index, theta_index] += 1
-      par_points.append((rho_index,theta_index,coord1,coord2))
+      par_points.append((rho_index,theta_index,coord1,coord2))#li organizzo come z,y
   return accumulator, rhos, thetas, par_points
 
 def FindLocalMaxima(accumulator):
@@ -139,11 +140,12 @@ def FindClosestToLinePoints(points, rho_thetas_max):
   collinear_points1 = []
   collinear_points2 = []
   n=0
+  #coord1=z, coord2=y
   for coord1,coord2 in points:
     n+=1
     dist_point_to_lines = []
     for rho,theta in rho_thetas_max:
-      d = abs((np.cos(theta)*coord1 + np.sin(theta)*coord2 - rho)) / (np.sqrt(np.cos(theta)*np.cos(theta) + np.sin(theta)*np.sin(theta)))
+      d = abs((np.cos(theta)*coord2 + np.sin(theta)*coord1 - rho)) / (np.sqrt(np.cos(theta)*np.cos(theta) + np.sin(theta)*np.sin(theta)))
       dist_point_to_lines.append((d,rho,theta))
     min_dist = np.min(np.asarray(dist_point_to_lines)[:,0])
     
@@ -154,7 +156,6 @@ def FindClosestToLinePoints(points, rho_thetas_max):
     print("closest line: ", n, closest_line)
 
     if closest_line == rho_thetas_max[0]:
-      print('ok')
       collinear_points1.append((coord1,coord2))
     elif len(rho_thetas_max)>1 and closest_line == rho_thetas_max[1]:
       collinear_points2.append((coord1,coord2))
@@ -217,9 +218,11 @@ if __name__ == '__main__':
     #**************************ACCUMULATOR***************************
     fig3 = plt.figure()
     all_lpcs = np.concatenate([cluster.LPCs[0] for cluster in all_clusters_in_ev])
-    pointsYZ = list(zip(all_lpcs[:,1],all_lpcs[:,2]))
+    # print("all_lpcs: ", all_lpcs[0])
+    # points = list(zip(all_lpcs[:,0],all_lpcs[:,1],all_lpcs[:,2]))
+    pointsZY = list(zip(all_lpcs[:,2],all_lpcs[:,1]))
     pointsXZ = list(zip(all_lpcs[:,0],all_lpcs[:,2]))
-    accumulator, rhos, thetas, indices_points = HoughTransform(pointsYZ)
+    accumulator, rhos, thetas, indices_points = HoughTransform(pointsZY)
 
     local_max_indices, rho_thetas_max = FindLocalMaxima(accumulator)
     print("indices_local_max (rows, columns): ", local_max_indices)
@@ -241,7 +244,7 @@ if __name__ == '__main__':
     #*********************************************************************
     
     #***********************************2D PLOT***************************
-    all_collinear_points = FindClosestToLinePoints(pointsYZ, rho_thetas_max)
+    all_collinear_points = FindClosestToLinePoints(pointsZY, rho_thetas_max)
     #print("collinear points: ", all_collinear_points)
 
     fig2 = plt.figure()
@@ -251,23 +254,48 @@ if __name__ == '__main__':
       ax.scatter(single_curve[:,2], single_curve[:,1], color = 'red')#allLPCpoints
     #for collinear_points in all_collinear_pt:
     all_collinear_points[0] = np.asarray(all_collinear_points[0])
-    ax.scatter(all_collinear_points[0][:,1], all_collinear_points[0][:,0], color = 'green')
+    ax.scatter(all_collinear_points[0][:,0], all_collinear_points[0][:,1], color = 'green')
     if len(all_collinear_points)>1:
       all_collinear_points[1] = np.asarray(all_collinear_points[1])
-      plt.scatter(all_collinear_points[1][:,1], all_collinear_points[1][:,0], color = 'blue')
+      plt.scatter(all_collinear_points[1][:,0], all_collinear_points[1][:,1], color = 'blue')
     plt.ylim(-700,700)
     plt.xlim(-200,200)
     plt.gca().set_aspect('equal', adjustable='box')
 
     # for rho,theta in rho_thetas_max:
-    #   y = np.linspace(-700, 700, 10000)
-    #   z = -(np.cos(theta)/np.sin(theta))*y + rho/np.sin(theta)
-    #   plt.plot(z, y)
+    #   z = np.linspace(-400, 400, 10000)
+    #   y = -(np.cos(theta)/np.sin(theta))*z + rho/np.sin(theta)
+    #   plt.plot(y, z)
     
-    fit = np.polyfit(all_collinear_points[0][:,1], all_collinear_points[0][:,0], deg=1)
-    print("fit: ", fit)
-    trendfit = np.poly1d(fit)
-    plt.plot(trendfit(fit))
+
+    # def f(y,rho,theta):
+    #   return -(np.cos(theta)/np.sin(theta))*y + rho/np.sin(theta)
+    # initial_guess = (rho_thetas_max[1][0],rho_thetas_max[1][1])
+    # print(initial_guess)
+    # popt, pcov = scp.optimize.curve_fit(f,all_collinear_points[0][:,0],all_collinear_points[0][:,1], p0 = (rho_thetas_max[1][0],rho_thetas_max[1][1]))
+    # print(popt)
+    # plt.plot(f(all_collinear_points[0][:,0], *popt))
+
+    # for i, collinear_points in enumerate(all_collinear_points):
+    #   print("ok")
+    #   slope, intercept = np.polyfit(collinear_points[:,0], collinear_points[:,1], 1)
+    #   print("m-q: ", slope, intercept)
+    #   theta_fit = - np.arctan(slope)
+    #   rho_fit = intercept*np.sin(theta_fit)
+    #   print("(rho-theta) fit: ", rho_fit, np.rad2deg(theta_fit))
+    #   print("(rho-theta) hough: ", rho_thetas_max[i][0], np.rad2deg(rho_thetas_max[i][1]))
+    #   plt.plot(collinear_points[:,0], slope*collinear_points[:,0] + intercept, color='red')
+    
+    slope1, intercept1 = np.polyfit(all_collinear_points[0][:,0], all_collinear_points[0][:,1], 1)
+    print("par fit: ", slope1, intercept1)
+    plt.plot(all_collinear_points[0][:,0], slope1*all_collinear_points[0][:,0] + intercept1, color='red')
+    slope2, intercept2 = np.polyfit(all_collinear_points[1][:,0], all_collinear_points[1][:,1], 1)
+    print("par fit: ", slope2, intercept2)
+    plt.plot(all_collinear_points[1][:,0], slope2*all_collinear_points[1][:,0] + intercept2, color='orange')
+    
+    x_int = (intercept2 - intercept1)/(slope1 - slope2)
+    y_int = slope1*x_int + intercept1
+    print("vertex: ", x_int, y_int)
 
     # from matplotlib.patches import Circle
 
@@ -275,7 +303,7 @@ if __name__ == '__main__':
     # radius = 220
     # circle = Circle(center, radius,facecolor = None, edgecolor = 'blue',alpha=0.1)
     # ax.add_patch(circle)
-  
+    plt.grid()
     plt.title("y-z plane")
     plt.xlabel("z (mm)")
     plt.ylabel("y (mm)")
