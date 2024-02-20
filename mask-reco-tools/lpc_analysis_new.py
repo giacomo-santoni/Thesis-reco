@@ -57,25 +57,16 @@ def getVoxelsCut(data, geotree, cut):
   return xyz, amps
 
 """creo array con i centri e le ampiezze di tutti gli eventi selezionati"""
-def AllCentersAllEvents(events, fname1, fname2, geotree, applyGradient):
+def AllCentersAllEvents(events, fname1):
   centers_all_ev = []
   amps_all_ev = []
   recodata_all_ev = []
   for ev in events:
     data = load_pickle(fname1, ev)
-    if all_parameters["it"] not in data.keys():
-      data = load_pickle(fname2, ev)
-    if applyGradient:
-       recodata = data[all_parameters["g_it"]]
-       data_masked = recodata[5:-5,5:-5,5:-5]
-       gradient_recodata = gradient(data_masked)
-       g_cut = all_parameters["g_cut_perc"]*np.max(gradient_recodata)
-       centers, amps = getVoxelsCut(gradient_recodata, geotree, g_cut)
-    else:
-       recodata = data[all_parameters["it"]]
-       data_masked = recodata[5:-5,5:-5,5:-5]
-       cut = all_parameters["cuts"][0]
-       centers, amps = getVoxelsCut(data_masked, geom.fiducial, cut)
+    recodata = data[all_parameters["it"]]
+    data_masked = recodata[5:-5,5:-5,5:-5]
+    cut = all_parameters["cuts"][0]
+    centers, amps = getVoxelsCut(data_masked, geom.fiducial, cut)
     centers = np.transpose(centers)
     recodata_all_ev.append(recodata)
     centers_all_ev.append(centers)
@@ -162,7 +153,7 @@ def FindClosestToLinePoints(points, rho_thetas_max):
       points_labels.append(1)
 
   all_collinear_points.append(collinear_points1)
-  if len(rho_thetas_max)>1:
+  if len(rho_thetas_max)>1 and len(collinear_points2) != 0:
     all_collinear_points.append(collinear_points2)
   return all_collinear_points, points_labels
 
@@ -192,17 +183,18 @@ def GetRecoVertex(all_collinear_points):
   all_slopesZX = []
   all_interceptsZX = []
   for collinear_points in all_collinear_points:
-    #ZY
-    collinear_points = np.asarray(collinear_points)
-    slopeZY, interceptZY, resZY = Fit(collinear_points[:,2], collinear_points[:,1])
-    #print("resZY: ", resZY)
-    all_slopesZY.append(slopeZY)
-    all_interceptsZY.append(interceptZY)
-    #ZX
-    slopeZX, interceptZX, resZX = Fit(collinear_points[:,2], collinear_points[:,0])
-    #print("resZX: ", resZX)
-    all_slopesZX.append(slopeZX)
-    all_interceptsZX.append(interceptZX)
+    if len(collinear_points) != 0:
+      #ZY
+      collinear_points = np.asarray(collinear_points)
+      slopeZY, interceptZY, resZY = Fit(collinear_points[:,2], collinear_points[:,1])
+      #print("resZY: ", resZY)
+      all_slopesZY.append(slopeZY)
+      all_interceptsZY.append(interceptZY)
+      #ZX
+      slopeZX, interceptZX, resZX = Fit(collinear_points[:,2], collinear_points[:,0])
+      #print("resZX: ", resZX)
+      all_slopesZX.append(slopeZX)
+      all_interceptsZX.append(interceptZX)
     
   if len(all_interceptsZY)>1 or len(all_interceptsZX)>1:
     z_vertex1 = (all_interceptsZY[1] - all_interceptsZY[0])/(all_slopesZY[0] - all_slopesZY[1])
@@ -215,54 +207,74 @@ def GetRecoVertex(all_collinear_points):
 
     z_vertex = (z_vertex1 + z_vertex2)/2
 
-  x_vertex = slopeZX*z_vertex + interceptZX
-  reco_vertex = (x_vertex, y_vertex, z_vertex)
+    x_vertex = slopeZX*z_vertex + interceptZX
+    reco_vertex = (x_vertex, y_vertex, z_vertex)
+  else: reco_vertex = "Vertex not found or not present"
   return reco_vertex
 
 def GetRecoDirections(reco_vertex, all_collinear_points):
   all_reco_directions = []
   for collinear_points in all_collinear_points: 
-    collinear_points = np.asarray(collinear_points)
-    slopeZY, interceptZY, _ = Fit(collinear_points[:,2], collinear_points[:,1])
-    slopeZX, interceptZX, _ = Fit(collinear_points[:,2], collinear_points[:,0])
-    z = collinear_points[0,0]
-    point2 = np.asarray((slopeZX*z + interceptZX, slopeZY*z + interceptZY, z))#x,y,z
-    reco_vertex = np.asarray(reco_vertex)
-
-    direction = (point2 - reco_vertex)
-    all_reco_directions.append(direction)  
+    if len(collinear_points) != 0:
+      collinear_points = np.asarray(collinear_points)
+      slopeZY, interceptZY, _ = Fit(collinear_points[:,2], collinear_points[:,1])
+      slopeZX, interceptZX, _ = Fit(collinear_points[:,2], collinear_points[:,0])
+      z = collinear_points[0,2]
+      point2 = np.asarray((slopeZX*z + interceptZX, slopeZY*z + interceptZY, z))#x,y,z
+      if isinstance(reco_vertex, np.ndarray):
+        reco_vertex = np.asarray(reco_vertex)
+        direction = (point2 - reco_vertex)
+      elif not isinstance(reco_vertex, np.ndarray):
+        if len(collinear_points)>1:
+          z1 = collinear_points[1,2]
+          point1 = np.asarray((slopeZX*z1 + interceptZX, slopeZY*z1 + interceptZY, z1))#x,y,z
+          direction = (point2 - point1)
+          all_reco_directions.append(direction)  
   return all_reco_directions 
+
+#da sistemare
+def GetRecoAngle(reco_directions, true_directions):
+  min_thetas = []
+  for r_dir in reco_directions:
+    all_thetas = []
+    for t_dir in true_directions:
+      theta = np.arccos(np.dot(r_dir,t_dir)/(np.linalg.norm(r_dir)*np.linalg.norm(t_dir)))
+      all_thetas.append(theta)
+      print("all_thetas: ", np.rad2deg(all_thetas))
+    min_thetas.append(np.rad2deg(np.min(all_thetas)))
+  return min_thetas
 
 
 if __name__ == '__main__':
   #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
-  eventNumbers = EventNumberList("./data/data_1-12/idlist_ccqe_mup.txt")
+  eventNumbers = EventNumberList("./data/data_19-2/id-list/idlist.2.txt")
+  #print(eventNumbers)
   # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
   #selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
   #selectedEvents = [0,1,2,4,5,6,7,8,9]
-  selectedEvents = [eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
+  selectedEvents = eventNumbers#[eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
+  #print(selectedEvents)
 
   geometryPath = "./geometry" #path to GRAIN geometry
-  fpkl1 = "./data/initial-data/reco_data/3dreco-0-10.pkl" #reconstruction data file
-  fpkl2 = "./data/initial-data/reco_data/3dreco-10-30.pkl"
-  fpkl3 = "./data/other_data/3dreco.pkl"
-  fpkl4 = "./data/data_1-12/3dreco_ccqe_mup.pkl"
+  fpkl = "./data/data_19-2/pickles/3dreco_2.pkl"
 
-  edepsim_file = "./data/data_1-12/events-in-GRAIN_LAr_lv.999.edep-sim.root"
+  edepsim_file = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.2.edep-sim.root"
   geom = load_geometry(geometryPath, defs)
 
-  centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl4, fpkl2, geom.fiducial, applyGradient=False)
+  centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl)
 
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
   for i in range(len(selectedEvents)):
     all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
 
+    print("*******************NUOVO EVENTO***********************")
     print("evento: ", selectedEvents[i])
 
     #************************MC TRUTH**************************
-    vertices, directions = ExtractTrueParameters(edepsim_file, selectedEvents[i])
-    print("TRUE vertex: ", vertices)
-    print("TRUE directions: ", directions)
+    true_vertices, true_directions = ExtractTrueParameters(edepsim_file, selectedEvents[i])
+    print("---------------------MC TRUTH-------------------------")
+    print("TRUE vertex: ", true_vertices)
+    print("TRUE directions: ", true_directions)
     #**********************************************************
 
     #************************3D PLOT****************************
@@ -335,26 +347,31 @@ if __name__ == '__main__':
     # ax.scatter(all_points[:,2], all_points[:,1], c=points_labels, cmap='cividis')
     
     #i collinear points sono organizzati come x,y,z; li disegno nel piano z-y
-    all_collinear_points[0] = np.asarray(all_collinear_points[0])
-    ax.scatter(all_collinear_points[0][:,2], all_collinear_points[0][:,1], color = 'green')
-    if len(all_collinear_points)>1:
-      all_collinear_points[1] = np.asarray(all_collinear_points[1])
-      plt.scatter(all_collinear_points[1][:,2], all_collinear_points[1][:,1], color = 'blue')
+    if all_collinear_points[0] != []:
+      all_collinear_points[0] = np.asarray(all_collinear_points[0])
+      ax.scatter(all_collinear_points[0][:,2], all_collinear_points[0][:,1], color = 'green')
+      if len(all_collinear_points)>1:
+        if all_collinear_points[1] != []:
+          all_collinear_points[1] = np.asarray(all_collinear_points[1])
+          plt.scatter(all_collinear_points[1][:,2], all_collinear_points[1][:,1], color = 'blue')
     plt.ylim(-700,700)
     plt.xlim(-200,200)
     plt.gca().set_aspect('equal', adjustable='box')
 
     """HOUGH TRANSFORM LINES"""
-    # for rho,theta in rho_thetas_max:
-    #   z = np.linspace(-400, 400, 10000)
-    #   y = -(np.cos(theta)/np.sin(theta))*z + rho/np.sin(theta)
-    #   plt.plot(y, z)
+    for rho,theta in rho_thetas_max:
+      z = np.linspace(-400, 400, 10000)
+      y = -(np.cos(theta)/np.sin(theta))*z + rho/np.sin(theta)
+      plt.plot(y, z)
 
     for collinear_points in all_collinear_points:
-      slope, intercept, res = Fit(collinear_points[:,2], collinear_points[:,1])
-      plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
+      if len(collinear_points) != 0:
+        collinear_points = np.asarray(collinear_points)
+        slope, intercept, res = Fit(collinear_points[:,2], collinear_points[:,1])
+        plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
     
     """RECO VERTEX"""
+    print("---------------------------RECO-----------------------------")
     reco_vertex = GetRecoVertex(all_collinear_points)
     print("RECO vertex: ", reco_vertex)
 
@@ -362,23 +379,10 @@ if __name__ == '__main__':
     all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_points)
     print("RECO directions: ", all_reco_directions)
 
-    theta = np.arccos(np.dot(all_reco_directions[0],directions[1])/(np.linalg.norm(all_reco_directions[0])*np.linalg.norm(directions[1])))
-    
-    print("angle: ", np.rad2deg(theta))#since the outcome of arccos is in radians
+    """ANGLE"""
+    theta = GetRecoAngle(all_reco_directions, true_directions)
+    print("RECO angle: ", theta)
 
-    # p, res,_,_,_ = np.polyfit(all_collinear_points[0][:,2], all_collinear_points[0][:,1], 1, full=True)
-    # yfit = np.polyval(p,all_collinear_points[0][:,2])
-    # residual = np.sqrt(np.sum((all_collinear_points[0][:,1]-yfit)**2)/len(all_collinear_points[0][:,1]))
-    # print("resi: ", residual)
-    # plt.plot(all_collinear_points[0][:,2], all_collinear_points[0][:,1]-yfit)
-
-
-    # from matplotlib.patches import Circle
-
-    # center = (0, 0)
-    # radius = 220
-    # circle = Circle(center, radius,facecolor = None, edgecolor = 'blue',alpha=0.1)
-    # ax.add_patch(circle)
     plt.grid()
     plt.title("z-y plane")
     plt.xlabel("z (mm)")
