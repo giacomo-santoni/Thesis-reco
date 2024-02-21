@@ -108,7 +108,7 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
 
   accumulator = np.zeros((len(rhos), len(thetas)), dtype=np.uint64)
   
-  #coord1=z, coord2=y
+  #coord1=z, coord2=y oppure coord2=x
   for coord1,coord2 in points:
     for theta_index, theta in enumerate(thetas):
       rho = coord2 * np.cos(theta) + coord1 * np.sin(theta)
@@ -118,6 +118,10 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
 
 def FindLocalMaxima(accumulator):
   local_max_indices = sk.feature.peak_local_max(accumulator, min_distance=4, threshold_rel = 0.6, exclude_border=False)
+  
+  if len(local_max_indices) > 2:
+    local_max_indices = local_max_indices[:2]
+  
   rho_thetas_max = []
   for i in local_max_indices:
     theta_max = thetas[i[1]]
@@ -125,11 +129,10 @@ def FindLocalMaxima(accumulator):
     rho_thetas_max.append((rho_max, theta_max))
   return local_max_indices, rho_thetas_max
 
-def FindClosestToLinePoints(points, rho_thetas_max):
-  all_collinear_points = []
+def FindClosestToLinePointsZY(points, rho_thetas_max):
+  all_collinear_pointsZY = []
   collinear_points1 = []
   collinear_points2 = []
-  points_labels = []
   n=0
   #coord1=x, coord2=y, coord3=z
   for coord1,coord2,coord3 in points:
@@ -147,15 +150,42 @@ def FindClosestToLinePoints(points, rho_thetas_max):
 
     if closest_line == rho_thetas_max[0]:
       collinear_points1.append((coord1,coord2,coord3))
-      points_labels.append(0)
     elif len(rho_thetas_max)>1 and closest_line == rho_thetas_max[1]:
       collinear_points2.append((coord1,coord2,coord3))
-      points_labels.append(1)
 
-  all_collinear_points.append(collinear_points1)
+  all_collinear_pointsZY.append(collinear_points1)
   if len(rho_thetas_max)>1 and len(collinear_points2) != 0:
-    all_collinear_points.append(collinear_points2)
-  return all_collinear_points, points_labels
+    all_collinear_pointsZY.append(collinear_points2)
+  return all_collinear_pointsZY
+
+def FindClosestToLinePointsZX(points, rho_thetas_max):
+  all_collinear_pointsZX = []
+  collinear_points1 = []
+  collinear_points2 = []
+  n=0
+  #coord1=x, coord2=y, coord3=z
+  for coord1,coord2,coord3 in points:
+    n+=1
+    dist_point_to_lines = []
+    for rho,theta in rho_thetas_max:
+      d = abs((np.cos(theta)*coord1 + np.sin(theta)*coord3 - rho)) / (np.sqrt(np.cos(theta)*np.cos(theta) + np.sin(theta)*np.sin(theta)))
+      dist_point_to_lines.append((d,rho,theta))
+    min_dist = np.min(np.asarray(dist_point_to_lines)[:,0])
+    
+    closest_line = []
+    for tuple in dist_point_to_lines: 
+      if tuple[0] == min_dist and tuple[0]<45:
+        closest_line = (tuple[1],tuple[2])
+
+    if closest_line == rho_thetas_max[0]:
+      collinear_points1.append((coord1,coord2,coord3))
+    elif len(rho_thetas_max)>1 and closest_line == rho_thetas_max[1]:
+      collinear_points2.append((coord1,coord2,coord3))
+
+  all_collinear_pointsZX.append(collinear_points1)
+  if len(rho_thetas_max)>1 and len(collinear_points2) != 0:
+    all_collinear_pointsZX.append(collinear_points2)
+  return all_collinear_pointsZX
 
 def ExtractTrueParameters(fname, ev):
   true_event = loadPrimariesEdepSim(fname, ev)
@@ -165,17 +195,15 @@ def ExtractTrueParameters(fname, ev):
     vertices_coord.append(vertex.position)
     particles = vertex.particles
     directions = []
-    for j, particle in enumerate(particles):
+    for particle in particles:
       momentum = particle.momentum
       directions.append(momentum)
   return vertices_coord, directions
 
 def Fit(points1, points2):
-  p, res,_,_,_ = np.polyfit(points1, points2, 1, full=True)
-  slope = p[0]
-  intercept = p[1]
+  slope, intercept = np.polyfit(points1, points2, 1)
   #plt.plot(points1, slope*points2 + intercept, color='red')
-  return slope, intercept, res
+  return slope, intercept
 
 def GetRecoVertex(all_collinear_points):
   all_slopesZY = []
@@ -186,13 +214,11 @@ def GetRecoVertex(all_collinear_points):
     if len(collinear_points) != 0:
       #ZY
       collinear_points = np.asarray(collinear_points)
-      slopeZY, interceptZY, resZY = Fit(collinear_points[:,2], collinear_points[:,1])
-      #print("resZY: ", resZY)
+      slopeZY, interceptZY = Fit(collinear_points[:,2], collinear_points[:,1])
       all_slopesZY.append(slopeZY)
       all_interceptsZY.append(interceptZY)
       #ZX
-      slopeZX, interceptZX, resZX = Fit(collinear_points[:,2], collinear_points[:,0])
-      #print("resZX: ", resZX)
+      slopeZX, interceptZX = Fit(collinear_points[:,2], collinear_points[:,0])
       all_slopesZX.append(slopeZX)
       all_interceptsZX.append(interceptZX)
     
@@ -217,48 +243,45 @@ def GetRecoDirections(reco_vertex, all_collinear_points):
   for collinear_points in all_collinear_points: 
     if len(collinear_points) != 0:
       collinear_points = np.asarray(collinear_points)
-      slopeZY, interceptZY, _ = Fit(collinear_points[:,2], collinear_points[:,1])
-      slopeZX, interceptZX, _ = Fit(collinear_points[:,2], collinear_points[:,0])
+      slopeZY, interceptZY = Fit(collinear_points[:,2], collinear_points[:,1])
+      slopeZX, interceptZX = Fit(collinear_points[:,2], collinear_points[:,0])
       z = collinear_points[0,2]
       point2 = np.asarray((slopeZX*z + interceptZX, slopeZY*z + interceptZY, z))#x,y,z
       if isinstance(reco_vertex, np.ndarray):
         reco_vertex = np.asarray(reco_vertex)
-        direction = (point2 - reco_vertex)
+        direction = (reco_vertex - point2)
       elif not isinstance(reco_vertex, np.ndarray):
         if len(collinear_points)>1:
           z1 = collinear_points[1,2]
           point1 = np.asarray((slopeZX*z1 + interceptZX, slopeZY*z1 + interceptZY, z1))#x,y,z
-          direction = (point2 - point1)
+          direction = (point1 - point2)
           all_reco_directions.append(direction)  
   return all_reco_directions 
 
-#da sistemare
 def GetRecoAngle(reco_directions, true_directions):
   min_thetas = []
   for r_dir in reco_directions:
     all_thetas = []
     for t_dir in true_directions:
-      theta = np.arccos(np.dot(r_dir,t_dir)/(np.linalg.norm(r_dir)*np.linalg.norm(t_dir)))
+      theta = np.arccos(np.abs(np.dot(r_dir,t_dir)/(np.linalg.norm(r_dir)*np.linalg.norm(t_dir))))
+      print("angle: ", np.rad2deg(theta))
       all_thetas.append(theta)
-      print("all_thetas: ", np.rad2deg(all_thetas))
+      # print("all_thetas: ", np.rad2deg(all_thetas))
     min_thetas.append(np.rad2deg(np.min(all_thetas)))
   return min_thetas
 
 
 if __name__ == '__main__':
-  #eventNumbers = EventNumberList("./data/initial-data/EDepInGrain_1.txt")
-  eventNumbers = EventNumberList("./data/data_19-2/id-list/idlist.2.txt")
-  #print(eventNumbers)
-  # ev selected: 229,265,440,1173,1970,3344,3453,3701,4300
-  #selectedEvents = [eventNumbers[0],eventNumbers[1],eventNumbers[2],eventNumbers[6],eventNumbers[9],eventNumbers[20],eventNumbers[21],eventNumbers[24],eventNumbers[25]]
-  #selectedEvents = [0,1,2,4,5,6,7,8,9]
+  eventNumbers = EventNumberList("./data/data_19-2/id-list/idlist.1.txt")
+  #eventNumbers = EventNumberList("./data/data_1-12/idlist_ccqe_mup.txt")
   selectedEvents = eventNumbers#[eventNumbers[4],eventNumbers[7],eventNumbers[16],eventNumbers[18],eventNumbers[19]]
-  #print(selectedEvents)
 
   geometryPath = "./geometry" #path to GRAIN geometry
-  fpkl = "./data/data_19-2/pickles/3dreco_2.pkl"
+  fpkl = "./data/data_19-2/pickles/3dreco_1.pkl"
+  #fpkl4 = "./data/data_1-12/3dreco_ccqe_mup.pkl"
 
-  edepsim_file = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.2.edep-sim.root"
+  edepsim_file = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.1.edep-sim.root"
+  #edepsim_file = "./data/data_1-12/events-in-GRAIN_LAr_lv.999.edep-sim.root"
   geom = load_geometry(geometryPath, defs)
 
   centers_all_ev, amps_all_ev, recodata_all_ev = AllCentersAllEvents(selectedEvents, fpkl)
@@ -277,9 +300,146 @@ if __name__ == '__main__':
     print("TRUE directions: ", true_directions)
     #**********************************************************
 
-    #************************3D PLOT****************************
+    #**************************ACCUMULATOR***************************
+    if len(all_clusters_in_ev) != 0:
+      all_lpcs = np.concatenate([cluster.LPCs[0] for cluster in all_clusters_in_ev])
+      points = list(zip(all_lpcs[:,0],all_lpcs[:,1],all_lpcs[:,2]))
+      pointsZY = list(zip(all_lpcs[:,2],all_lpcs[:,1]))
+      pointsZX = list(zip(all_lpcs[:,2],all_lpcs[:,0]))
+    
+    accumulatorZY, rhos, thetas = HoughTransform(pointsZY)
+    accumulatorZX, _, _ = HoughTransform(pointsZX)
+
+    local_max_indicesZY, rho_thetas_maxZY = FindLocalMaxima(accumulatorZY)
+    local_max_indicesZX, rho_thetas_maxZX = FindLocalMaxima(accumulatorZX)
+    print("indices_local_max (rows, columns) ZY: ", local_max_indicesZY)
+    print("len: ", len(local_max_indicesZY))
+    print("indices_local_max (rows, columns) ZX: ", local_max_indicesZX)
+    print("rhos thetas max ZY: ", rho_thetas_maxZY)
+    print("rhos thetas max ZX: ", rho_thetas_maxZX)
+
+
+    for j in local_max_indicesZY:
+      local_max_values = accumulatorZY[j[0],j[1]]
+      # print("max_values: ", local_max_values)
+      # print("theta: ", np.rad2deg(thetas[i[1]]))
+      # print("rho: ", rhos[i[0]])
+
     fig1 = plt.figure()
-    ax = fig1.add_subplot(projection='3d')
+    plt.imshow(accumulatorZY, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
+    plt.xlabel('theta')
+    plt.ylabel('rho')
+    plt.title('ZY')
+    plt.colorbar()
+
+    for k in local_max_indicesZY:
+      plt.plot(np.rad2deg(thetas[k[1]]),rhos[k[0]], 'ro')
+
+    fig2 = plt.figure()
+    plt.imshow(accumulatorZX, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
+    plt.xlabel('theta')
+    plt.ylabel('rho')
+    plt.title('ZX')
+    plt.colorbar()
+
+    for w in local_max_indicesZX:
+      plt.plot(np.rad2deg(thetas[w[1]]),rhos[w[0]], 'bo')
+    #*********************************************************************
+
+    #***********************************2D PLOT ZY***************************
+    all_collinear_pointsZY = FindClosestToLinePointsZY(points, rho_thetas_maxZY)
+
+    fig3 = plt.figure()
+    ax = fig3.add_subplot()
+    for cluster in all_clusters_in_ev:
+      single_curve = np.asarray(cluster.LPCs[0])
+      plt.scatter(single_curve[:,2], single_curve[:,1], color = 'red')#allLPCpoints
+    
+    #i collinear points sono organizzati come x,y,z; li disegno nel piano z-y
+    if all_collinear_pointsZY[0] != []:
+      all_collinear_pointsZY[0] = np.asarray(all_collinear_pointsZY[0])
+      plt.scatter(all_collinear_pointsZY[0][:,2], all_collinear_pointsZY[0][:,1], color = 'green')
+      if len(all_collinear_pointsZY)>1:
+        if all_collinear_pointsZY[1] != []:
+          all_collinear_pointsZY[1] = np.asarray(all_collinear_pointsZY[1])
+          plt.scatter(all_collinear_pointsZY[1][:,2], all_collinear_pointsZY[1][:,1], color = 'blue')
+    plt.ylim(-700,700)
+    plt.xlim(-200,200)
+    plt.gca().set_aspect('equal', adjustable='box')
+
+    """HOUGH TRANSFORM LINES"""
+    for rho,theta in rho_thetas_maxZY:
+      z = np.linspace(-400, 400, 10000)
+      y = -(np.cos(theta)/np.sin(theta))*z + rho/np.sin(theta)
+      plt.plot(y, z)
+
+    for collinear_points in all_collinear_pointsZY:
+      if len(collinear_points) != 0:
+        collinear_points = np.asarray(collinear_points)
+        slope, intercept = Fit(collinear_points[:,2], collinear_points[:,1])
+        plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
+  
+    plt.grid()
+    plt.title("z-y plane")
+    plt.xlabel("z (mm)")
+    plt.ylabel("y (mm)")
+    #*********************************************************************
+
+    #***********************************2D PLOT ZX***************************
+    all_collinear_pointsZX = FindClosestToLinePointsZX(points, rho_thetas_maxZX)
+
+    fig4 = plt.figure()
+    ax = fig4.add_subplot()
+    for cluster in all_clusters_in_ev:
+      single_curve = np.asarray(cluster.LPCs[0])
+      plt.scatter(single_curve[:,2], single_curve[:,0], color = 'red')#allLPCpoints
+
+    #i collinear points sono organizzati come x,y,z; li disegno nel piano z-x
+    if all_collinear_pointsZX[0] != []:
+      all_collinear_pointsZX[0] = np.asarray(all_collinear_pointsZX[0])
+      plt.scatter(all_collinear_pointsZX[0][:,2], all_collinear_pointsZX[0][:,0], color = 'green')
+      if len(all_collinear_pointsZX)>1:
+        if all_collinear_pointsZX[1] != []:
+          all_collinear_pointsZX[1] = np.asarray(all_collinear_pointsZX[1])
+          plt.scatter(all_collinear_pointsZX[1][:,2], all_collinear_pointsZX[1][:,0], color = 'blue')
+    plt.ylim(-1000,1000)
+    plt.xlim(-200,200)
+    plt.gca().set_aspect('equal', adjustable='box')
+
+    """HOUGH TRANSFORM LINES"""
+    for rho,theta in rho_thetas_maxZX:
+      z = np.linspace(-400, 400, 10000)
+      x = -(np.cos(theta)/np.sin(theta))*z + rho/np.sin(theta)
+      plt.plot(x, z)
+
+    for collinear_points in all_collinear_pointsZX:
+      if len(collinear_points) != 0:
+        collinear_points = np.asarray(collinear_points)
+        slope, intercept = Fit(collinear_points[:,2], collinear_points[:,0])
+        plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
+
+    plt.grid()
+    plt.title("z-x plane")
+    plt.xlabel("z (mm)")
+    plt.ylabel("x (mm)")
+    #*********************************************************************
+
+    # """RECO VERTEX"""
+    # print("---------------------------RECO-----------------------------")
+    # reco_vertex = GetRecoVertex(all_collinear_points)
+    # print("RECO vertex: ", reco_vertex)
+
+    # """RECO DIRECTION"""
+    # all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_points)
+    # print("RECO directions: ", all_reco_directions)
+
+    # """ANGLE"""
+    # theta = GetRecoAngle(all_reco_directions, true_directions)
+    # print("RECO angle: ", theta)
+
+    #************************3D PLOT****************************
+    fig5 = plt.figure()
+    ax = fig5.add_subplot(projection='3d')
     scalesz = np.max(recodata_all_ev[i].shape) * 12 / 1.6
     ax.set_xlim([-scalesz, scalesz])
     ax.set_ylim([-scalesz, scalesz])
@@ -292,101 +452,12 @@ if __name__ == '__main__':
       single_curve = np.asarray(cluster.LPCs[0])
       cluster.FindBreakPoint()
       ax.scatter3D(single_curve[:, 0], single_curve[:,1], single_curve[:,2], color = 'red')#allLPCpoints
-      # if cluster.break_point != 0:
-      #   cluster.BreakLPCs()
-      #   broken_curve = np.asarray(cluster.broken_lpccurve[0])
-      #   broken_curve2 = np.asarray(cluster.broken_lpccurve[1])
-      #   ax.scatter3D(broken_curve[:,0], broken_curve[:,1], broken_curve[:,2], color = 'green')
-      #   ax.scatter3D(broken_curve2[:,0], broken_curve2[:,1], broken_curve2[:,2], color = 'purple')
-      #   ax.scatter3D(single_curve[cluster.break_point][0], single_curve[cluster.break_point][1], single_curve[cluster.break_point][2], color = 'blue', marker='D')
+    # ax.quiver(0, 0, 0, all_reco_directions[0][0], all_reco_directions[0][1], all_reco_directions[0][2], color='r', arrow_length_ratio=0.1)
+    # ax.quiver(0, 0, 0, true_directions[0][0], true_directions[0][1], true_directions[0][2], color='b', arrow_length_ratio=0.1)
+    # ax.quiver(0, 0, 0, all_reco_directions[1][0], all_reco_directions[1][1], all_reco_directions[1][2], color='g', arrow_length_ratio=0.1)
+    # ax.quiver(0, 0, 0, true_directions[1][0], true_directions[1][1], true_directions[1][2], color='b', arrow_length_ratio=0.1)
     plt.title(selectedEvents[i])
     plt.legend()
     #************************************************************
-
-    #**************************ACCUMULATOR***************************
-    all_lpcs = np.concatenate([cluster.LPCs[0] for cluster in all_clusters_in_ev])
-    points = list(zip(all_lpcs[:,0],all_lpcs[:,1],all_lpcs[:,2]))
-    pointsZY = list(zip(all_lpcs[:,2],all_lpcs[:,1]))
-    
-    accumulator, rhos, thetas = HoughTransform(pointsZY)
-
-    local_max_indices, rho_thetas_max = FindLocalMaxima(accumulator)
-    # print("indices_local_max (rows, columns): ", local_max_indices)
-    # print("rhos thetas max: ", rho_thetas_max)
-
-    for i in local_max_indices:
-      local_max_values = accumulator[i[0],i[1]]
-      # print("max_values: ", local_max_values)
-      # print("theta: ", np.rad2deg(thetas[i[1]]))
-      # print("rho: ", rhos[i[0]])
-
-    fig3 = plt.figure()
-    plt.imshow(accumulator, cmap='cividis', extent=[np.rad2deg(thetas[0]), np.rad2deg(thetas[-1]), rhos[-1], rhos[0]], aspect = 'auto')
-    plt.xlabel('theta')
-    plt.ylabel('rho')
-    plt.colorbar()
-
-    for i in local_max_indices:
-      plt.plot(np.rad2deg(thetas[i[1]]),rhos[i[0]], 'ro')
-    #*********************************************************************
-    
-    #***********************************2D PLOT***************************
-    all_collinear_points, points_labels = FindClosestToLinePoints(points, rho_thetas_max)
-
-    fig2 = plt.figure()
-    ax = fig2.add_subplot()
-    for cluster in all_clusters_in_ev:
-      single_curve = np.asarray(cluster.LPCs[0])
-      ax.scatter(single_curve[:,2], single_curve[:,1], color = 'red')#allLPCpoints
-
-    # all_points = []
-    # for collinear_points in all_collinear_points:
-    #   for points in collinear_points:
-    #     all_points.append(points)
-    # all_points = np.asarray(all_points)
-    # ax.scatter(all_points[:,2], all_points[:,1], c=points_labels, cmap='cividis')
-    
-    #i collinear points sono organizzati come x,y,z; li disegno nel piano z-y
-    if all_collinear_points[0] != []:
-      all_collinear_points[0] = np.asarray(all_collinear_points[0])
-      ax.scatter(all_collinear_points[0][:,2], all_collinear_points[0][:,1], color = 'green')
-      if len(all_collinear_points)>1:
-        if all_collinear_points[1] != []:
-          all_collinear_points[1] = np.asarray(all_collinear_points[1])
-          plt.scatter(all_collinear_points[1][:,2], all_collinear_points[1][:,1], color = 'blue')
-    plt.ylim(-700,700)
-    plt.xlim(-200,200)
-    plt.gca().set_aspect('equal', adjustable='box')
-
-    """HOUGH TRANSFORM LINES"""
-    for rho,theta in rho_thetas_max:
-      z = np.linspace(-400, 400, 10000)
-      y = -(np.cos(theta)/np.sin(theta))*z + rho/np.sin(theta)
-      plt.plot(y, z)
-
-    for collinear_points in all_collinear_points:
-      if len(collinear_points) != 0:
-        collinear_points = np.asarray(collinear_points)
-        slope, intercept, res = Fit(collinear_points[:,2], collinear_points[:,1])
-        plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
-    
-    """RECO VERTEX"""
-    print("---------------------------RECO-----------------------------")
-    reco_vertex = GetRecoVertex(all_collinear_points)
-    print("RECO vertex: ", reco_vertex)
-
-    """RECO DIRECTION"""
-    all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_points)
-    print("RECO directions: ", all_reco_directions)
-
-    """ANGLE"""
-    theta = GetRecoAngle(all_reco_directions, true_directions)
-    print("RECO angle: ", theta)
-
-    plt.grid()
-    plt.title("z-y plane")
-    plt.xlabel("z (mm)")
-    plt.ylabel("y (mm)")
-    #*********************************************************************
 
     plt.show()
