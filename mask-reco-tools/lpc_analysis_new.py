@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 import scipy as scp
 import skimage as sk
-import scipy as scp
+from scipy.stats import norm
 
 import clusterclass
 from recodisplay import load_pickle
@@ -290,13 +290,34 @@ def GetRecoAngle(reco_directions, true_directions):
     min_thetas.append(np.rad2deg(np.min(all_thetas)))
   return min_thetas
 
+def VertexCoordinatesHisto(true_vertices, reco_vertices, coord):
+  diff_vertices = []
+  fit_pars = []
+  for i, true_vertex in enumerate(true_vertices):
+    if isinstance(true_vertex, np.ndarray):
+      diff = (np.asarray(reco_vertices[i][coord]) - np.asarray(true_vertex[coord]))
+      diff_vertices.append(diff)
+
+  return diff_vertices#, fit_pars
+
+# def gauss (bins, mu, sigma):
+#   x = np.zeros(len(bins) - 1)
+#   for i in range(len(x)):
+#     x[i] = (bins[i] + bins[i+1])/2
+#   return x , 1/(sigma*np.sqrt(2*np.pi))*np.exp(-(x - mu)**2/(2*sigma**2))
+
+
 if __name__ == '__main__':
   list1 = "./data/data_19-2/id-list/idlist.1.txt"
   list2 = "./data/data_19-2/id-list/idlist.2.txt"
   list3 = "./data/data_19-2/id-list/idlist.3.txt"
   list4 = "./data/data_19-2/id-list/idlist.4.txt"
   list5 = "./data/data_19-2/id-list/idlist.5.txt"
-  id_list = [list1,list2,list3,list4,list5]
+  list6 = "./data/data_19-2/id-list/idlist.6.txt"
+  list7 = "./data/data_19-2/id-list/idlist.7.txt"
+  list8 = "./data/data_19-2/id-list/idlist.8.txt"
+  list9 = "./data/data_19-2/id-list/idlist.9.txt"
+  id_list = [list1, list2, list3, list4, list5, list6, list7, list8, list9]
 
   selectedEvents = (EventNumberList(id_list))
   print("selec events: ", selectedEvents)
@@ -309,7 +330,11 @@ if __name__ == '__main__':
   fpkl3 = "./data/data_19-2/pickles/3dreco_3.pkl"
   fpkl4 = "./data/data_19-2/pickles/3dreco_4.pkl"
   fpkl5 = "./data/data_19-2/pickles/3dreco_5.pkl"
-  pickles = [fpkl1, fpkl2, fpkl3, fpkl4, fpkl5]
+  fpkl6 = "./data/data_19-2/pickles/3dreco_6.pkl"
+  fpkl7 = "./data/data_19-2/pickles/3dreco_7.pkl"
+  fpkl8 = "./data/data_19-2/pickles/3dreco_8.pkl"
+  fpkl9 = "./data/data_19-2/pickles/3dreco_9.pkl"
+  pickles = [fpkl1, fpkl2, fpkl3, fpkl4, fpkl5, fpkl6, fpkl7, fpkl8, fpkl9]
 
   #fpkl4 = "./data/data_1-12/3dreco_ccqe_mup.pkl"
 
@@ -318,7 +343,11 @@ if __name__ == '__main__':
   edepsim_file3 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.3.edep-sim.root"
   edepsim_file4 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.4.edep-sim.root"
   edepsim_file5 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.5.edep-sim.root"
-  edepsim_files = [edepsim_file1, edepsim_file2, edepsim_file3, edepsim_file4, edepsim_file5]
+  edepsim_file6 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.6.edep-sim.root"
+  edepsim_file7 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.7.edep-sim.root"
+  edepsim_file8 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.8.edep-sim.root"
+  edepsim_file9 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.9.edep-sim.root"
+  edepsim_files = [edepsim_file1, edepsim_file2, edepsim_file3, edepsim_file4, edepsim_file5, edepsim_file6, edepsim_file7, edepsim_file8, edepsim_file9]
   #edepsim_file = "./data/data_1-12/events-in-GRAIN_LAr_lv.999.edep-sim.root"
   geom = load_geometry(geometryPath, defs)
 
@@ -332,8 +361,8 @@ if __name__ == '__main__':
   #**********************************************************
 
   reco_vertices = []
-  diff_vertices = []
   selected_true_vertices = []
+  selected_true_directions = []
   true_selected_events = []
 
   onePlane2Tracks = 0
@@ -407,7 +436,9 @@ if __name__ == '__main__':
         twoPlanes2Tracks += 1
 
         selected_true_vertices.append(all_true_vertices[i])
+        selected_true_directions.append(all_true_directions[i])
         true_selected_events.append(ev_numbers[i])
+
 
         #***********************************2D PLOT ZY***************************    
         # fig3 = plt.figure()
@@ -533,23 +564,9 @@ if __name__ == '__main__':
         all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
         print("RECO directions: ", all_reco_directions)
 
-        # """ANGLE"""
-        # theta = GetRecoAngle(all_reco_directions, all_true_directions[i])
-        # print("RECO angle: ", theta)
-
-  print("len reco vertices: ", len(reco_vertices))
-  print("true numbers: ", true_selected_events)
-  print("len true events: ", len(true_selected_events))
-  print("len true vertices: ", len(selected_true_vertices))
-
-  for i, true_vertex in enumerate(selected_true_vertices):
-    print(true_vertex)
-    #print("reco vert: ", type(reco_vertices[i]))
-    #if isinstance(reco_vertices[i], tuple):
-    diff = (np.asarray(reco_vertices[i][2]) - np.asarray(true_vertex[2]))
-    print("diff vert: ", diff)
-    diff_vertices.append(diff)
-
+        """ANGLE"""
+        theta = GetRecoAngle(all_reco_directions, all_true_directions[i])
+        print("RECO angle: ", theta)
 
   print("tot events: ", len(tot_events))
   print("1 piano 0 tracce: ", onePlane0Tracks)
@@ -558,6 +575,20 @@ if __name__ == '__main__':
   print("2 piani 1 traccia: ", twoPlanes1Tracks)
   print("2 piani 2 tracce: ", twoPlanes2Tracks)
 
-  fig6 = plt.figure()
-  plt.hist(diff_vertices, 200, (-100,100))
+  coord = ["x","y","z"]
+  for i, c in enumerate(coord):
+    diff_vertices = VertexCoordinatesHisto(selected_true_vertices, reco_vertices, i)
+    mu, std = norm.fit(diff_vertices) 
+    print("fit pars: ", mu, std)
+    fig = plt.figure()
+    plt.xlabel(f"{c} reco - {c} true")
+    plt.ylabel("counts")
+    plt.hist(diff_vertices, 10, (-60,60), density=True)
+    #fit the histo
+    xmin, xmax = plt.xlim()
+    x = np.linspace(xmin, xmax, 1000)
+    p = norm.pdf(x, mu, std)
+    plt.plot(x, p, "ro", linewidth=1)
+    plt.title(f"fit values {mu, std}")
   plt.show()
+
