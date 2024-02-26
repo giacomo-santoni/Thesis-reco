@@ -300,11 +300,10 @@ def VertexCoordinatesHisto(true_vertices, reco_vertices, coord):
 
   return diff_vertices#, fit_pars
 
-# def gauss (bins, mu, sigma):
-#   x = np.zeros(len(bins) - 1)
-#   for i in range(len(x)):
-#     x[i] = (bins[i] + bins[i+1])/2
-#   return x , 1/(sigma*np.sqrt(2*np.pi))*np.exp(-(x - mu)**2/(2*sigma**2))
+def gauss(x,amp,mu,sigma):
+  return amp*np.exp(-((x-mu)**2)/(2*sigma**2))
+
+
 
 
 if __name__ == '__main__':
@@ -317,7 +316,8 @@ if __name__ == '__main__':
   list7 = "./data/data_19-2/id-list/idlist.7.txt"
   list8 = "./data/data_19-2/id-list/idlist.8.txt"
   list9 = "./data/data_19-2/id-list/idlist.9.txt"
-  id_list = [list1, list2, list3, list4, list5, list6, list7, list8, list9]
+  list10 = "./data/data_19-2/id-list/idlist.10.txt"
+  id_list = [list1, list2, list3, list4, list5, list6, list7, list8, list9, list10]
 
   selectedEvents = (EventNumberList(id_list))
   print("selec events: ", selectedEvents)
@@ -334,7 +334,8 @@ if __name__ == '__main__':
   fpkl7 = "./data/data_19-2/pickles/3dreco_7.pkl"
   fpkl8 = "./data/data_19-2/pickles/3dreco_8.pkl"
   fpkl9 = "./data/data_19-2/pickles/3dreco_9.pkl"
-  pickles = [fpkl1, fpkl2, fpkl3, fpkl4, fpkl5, fpkl6, fpkl7, fpkl8, fpkl9]
+  fpkl10 = "./data/data_19-2/pickles/3dreco_10.pkl"
+  pickles = [fpkl1, fpkl2, fpkl3, fpkl4, fpkl5, fpkl6, fpkl7, fpkl8, fpkl9, fpkl10]
 
   #fpkl4 = "./data/data_1-12/3dreco_ccqe_mup.pkl"
 
@@ -347,7 +348,8 @@ if __name__ == '__main__':
   edepsim_file7 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.7.edep-sim.root"
   edepsim_file8 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.8.edep-sim.root"
   edepsim_file9 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.9.edep-sim.root"
-  edepsim_files = [edepsim_file1, edepsim_file2, edepsim_file3, edepsim_file4, edepsim_file5, edepsim_file6, edepsim_file7, edepsim_file8, edepsim_file9]
+  edepsim_file10 = "./data/data_19-2/edepsim/events-in-GRAIN_LAr_lv.10.edep-sim.root"
+  edepsim_files = [edepsim_file1, edepsim_file2, edepsim_file3, edepsim_file4, edepsim_file5, edepsim_file6, edepsim_file7, edepsim_file8, edepsim_file9, edepsim_file10]
   #edepsim_file = "./data/data_1-12/events-in-GRAIN_LAr_lv.999.edep-sim.root"
   geom = load_geometry(geometryPath, defs)
 
@@ -360,10 +362,18 @@ if __name__ == '__main__':
   # print("TRUE directions: ", len(all_true_directions))
   #**********************************************************
 
-  reco_vertices = []
-  selected_true_vertices = []
-  selected_true_directions = []
-  true_selected_events = []
+  twoPlanes2Tracks_reco_vertices = []
+  twoPlanes2Tracks_true_vertices = []
+  twoPlanes2Tracks_true_directions = []
+  twoPlanes2Tracks_true_events = []
+
+  onePlane2Tracks_reco_vertices = []
+  onePlane2Tracks_true_vertices = []
+  onePlane2Tracks_true_directions = []
+  onePlane2Tracks_true_events = []
+
+  cluster_countsZY = []
+  cluster_countsZX = []
 
   onePlane2Tracks = 0
   onePlane0Tracks = 0
@@ -430,15 +440,51 @@ if __name__ == '__main__':
       all_collinear_pointsZY = FindClosestToLinePointsZY(points, rho_thetas_maxZY)
       all_collinear_pointsZX = FindClosestToLinePointsZX(points, rho_thetas_maxZX)
 
+    cluster_countsZY.append(len(all_collinear_pointsZY))
+    cluster_countsZX.append(len(all_collinear_pointsZX))
+
+    """condition for two tracks in both planes"""
     if len(all_collinear_pointsZX) == 2 and len(all_collinear_pointsZY) == 2:
       if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
-        
         twoPlanes2Tracks += 1
+        twoPlanes2Tracks_true_vertices.append(all_true_vertices[i])
+        twoPlanes2Tracks_true_directions.append(all_true_directions[i])
+        twoPlanes2Tracks_true_events.append(ev_numbers[i])
+        print("---------------------------RECO-----------------------------")
+        reco_vertex = GetRecoVertex(all_collinear_pointsZX)
+        print("RECO vertex 2planes2tracks: ", reco_vertex)
+        twoPlanes2Tracks_reco_vertices.append(reco_vertex)
 
-        selected_true_vertices.append(all_true_vertices[i])
-        selected_true_directions.append(all_true_directions[i])
-        true_selected_events.append(ev_numbers[i])
+    """condition for two tracks in plane zx or zy: true and reco"""
+    if len(all_collinear_pointsZX) == 2 and (len(all_collinear_pointsZY) == 0 or len(all_collinear_pointsZY) == 1): 
+      #if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
+        onePlane2Tracks += 1
+        onePlane2Tracks_true_vertices.append(all_true_vertices[i])
+        onePlane2Tracks_true_directions.append(all_true_directions[i])
+        onePlane2Tracks_true_events.append(ev_numbers[i])
+        reco_vertex = GetRecoVertex(all_collinear_pointsZX)
+        print("---------------------------RECO-----------------------------")
+        print("RECO vertex 1plane2tracks: ", reco_vertex)
+        onePlane2Tracks_reco_vertices.append(reco_vertex)
+    if len(all_collinear_pointsZY) == 2 and (len(all_collinear_pointsZX) == 0 or len(all_collinear_pointsZX) == 1):
+      #if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
+      onePlane2Tracks += 1
+      onePlane2Tracks_true_vertices.append(all_true_vertices[i])
+      onePlane2Tracks_true_directions.append(all_true_directions[i])
+      onePlane2Tracks_true_events.append(ev_numbers[i])
+      reco_vertex = GetRecoVertex(all_collinear_pointsZY)
+      print("---------------------------RECO-----------------------------")
+      print("RECO vertex 1plane2tracks: ", reco_vertex)
+      onePlane2Tracks_reco_vertices.append(reco_vertex)
 
+
+        # """RECO DIRECTION"""
+        # all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
+        # print("RECO directions: ", all_reco_directions)
+
+        # """ANGLE"""
+        # theta = GetRecoAngle(all_reco_directions, all_true_directions[i])
+        # print("RECO angle: ", theta)
 
         #***********************************2D PLOT ZY***************************    
         # fig3 = plt.figure()
@@ -448,24 +494,24 @@ if __name__ == '__main__':
         #   plt.scatter(single_curve[:,2], single_curve[:,1], color = 'red')#allLPCpoints
       
         #i collinear points sono organizzati come x,y,z; li disegno nel piano z-y
-        all_collinear_pointsZY[0] = np.asarray(all_collinear_pointsZY[0])
-        #plt.scatter(all_collinear_pointsZY[0][:,2], all_collinear_pointsZY[0][:,1], color = 'green')
-        all_collinear_pointsZY[1] = np.asarray(all_collinear_pointsZY[1])
+        # all_collinear_pointsZY[0] = np.asarray(all_collinear_pointsZY[0])
+        # plt.scatter(all_collinear_pointsZY[0][:,2], all_collinear_pointsZY[0][:,1], color = 'green')
+        # all_collinear_pointsZY[1] = np.asarray(all_collinear_pointsZY[1])
         # plt.scatter(all_collinear_pointsZY[1][:,2], all_collinear_pointsZY[1][:,1], color = 'blue')
         # plt.ylim(-700,700)
         # plt.xlim(-200,200)
         # plt.gca().set_aspect('equal', adjustable='box')
 
-        """HOUGH TRANSFORM LINES"""
+        # """HOUGH TRANSFORM LINES"""
         # for rho,theta in rho_thetas_maxZY:
         #   y = np.linspace(-400, 400, 10000)
         #   z = -(np.cos(theta)/np.sin(theta))*y + rho/np.sin(theta)
         #   plt.plot(z, y)
 
-        for collinear_points in all_collinear_pointsZY:
-          collinear_points = np.asarray(collinear_points)
-          slope, intercept = Fit(collinear_points[:,2], collinear_points[:,1])
-          #plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
+        # for collinear_points in all_collinear_pointsZY:
+        #   collinear_points = np.asarray(collinear_points)
+        #   slope, intercept = Fit(collinear_points[:,2], collinear_points[:,1])
+        #   plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
     
         # plt.grid()
         # plt.title("z-y plane")
@@ -517,11 +563,11 @@ if __name__ == '__main__':
         #   z = -(np.cos(theta)/np.sin(theta))*x + rho/np.sin(theta)
         #   plt.plot(z, x)
 
-        for collinear_points in all_collinear_pointsZX:
-          if len(collinear_points) != 0:
-            collinear_points = np.asarray(collinear_points)
-            slope, intercept = Fit(collinear_points[:,2], collinear_points[:,0])
-            #plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
+        # for collinear_points in all_collinear_pointsZX:
+        #   if len(collinear_points) != 0:
+        #     collinear_points = np.asarray(collinear_points)
+        #     slope, intercept = Fit(collinear_points[:,2], collinear_points[:,0])
+        #     plt.plot(collinear_points[:,2], slope*collinear_points[:,2] + intercept, color = 'red')
 
         # plt.grid()
         # plt.title("z-x plane")
@@ -554,20 +600,6 @@ if __name__ == '__main__':
 
         #plt.show()
 
-        """RECO VERTEX"""
-        print("---------------------------RECO-----------------------------")
-        reco_vertex = GetRecoVertex(all_collinear_pointsZX)
-        print("RECO vertex: ", reco_vertex)
-        reco_vertices.append(reco_vertex)
-
-        """RECO DIRECTION"""
-        all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
-        print("RECO directions: ", all_reco_directions)
-
-        """ANGLE"""
-        theta = GetRecoAngle(all_reco_directions, all_true_directions[i])
-        print("RECO angle: ", theta)
-
   print("tot events: ", len(tot_events))
   print("1 piano 0 tracce: ", onePlane0Tracks)
   print("1 piano 1 traccia: ", onePlane1Tracks)
@@ -575,20 +607,27 @@ if __name__ == '__main__':
   print("2 piani 1 traccia: ", twoPlanes1Tracks)
   print("2 piani 2 tracce: ", twoPlanes2Tracks)
 
+  twoPlanes2Tracks_true_vertices.append(onePlane2Tracks_true_vertices)
+  twoPlanes2Tracks_reco_vertices.append(onePlane2Tracks_reco_vertices)
+
+  print("quanti cluster ZX: ", cluster_countsZX)
+  print("quanti cluster ZY: ", cluster_countsZY)
+
   coord = ["x","y","z"]
   for i, c in enumerate(coord):
-    diff_vertices = VertexCoordinatesHisto(selected_true_vertices, reco_vertices, i)
-    mu, std = norm.fit(diff_vertices) 
-    print("fit pars: ", mu, std)
+    diff_vertices = VertexCoordinatesHisto(twoPlanes2Tracks_true_vertices, twoPlanes2Tracks_reco_vertices, i)
     fig = plt.figure()
     plt.xlabel(f"{c} reco - {c} true")
     plt.ylabel("counts")
-    plt.hist(diff_vertices, 10, (-60,60), density=True)
+    #plt.hist(diff_vertices, 50, (-60,60), histtype='step')
+    n, bins, patches = plt.hist(diff_vertices, 50, (-100,100), histtype='step')
     #fit the histo
     xmin, xmax = plt.xlim()
-    x = np.linspace(xmin, xmax, 1000)
-    p = norm.pdf(x, mu, std)
-    plt.plot(x, p, "ro", linewidth=1)
-    plt.title(f"fit values {mu, std}")
+    x = np.linspace(xmin, xmax, len(n))
+    #y = n
+    popt, pcov = scp.optimize.curve_fit(gauss, x, n, p0 = [10, 0, 5])
+    #print("gauss: ", max(gauss))
+    plt.plot(x, gauss(x,*popt), color = 'red')
+    plt.title(f"fit values {popt[1],popt[2]}")
   plt.show()
 
