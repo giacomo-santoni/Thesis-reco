@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 import scipy as scp
 import skimage as sk
-from scipy.stats import norm
 
 import clusterclass
 from recodisplay import load_pickle
@@ -279,16 +278,26 @@ def GetRecoDirections(reco_vertex, all_collinear_points):
   return all_reco_directions 
 
 def GetRecoAngle(reco_directions, true_directions):
+  all_angles = []
   min_thetas = []
-  for r_dir in reco_directions:
-    all_thetas = []
-    for t_dir in true_directions:
-      theta = np.arccos(np.abs(np.dot(r_dir,t_dir)/(np.linalg.norm(r_dir)*np.linalg.norm(t_dir))))
-      print("angle: ", np.rad2deg(theta))
-      all_thetas.append(theta)
-      # print("all_thetas: ", np.rad2deg(all_thetas))
-    min_thetas.append(np.rad2deg(np.min(all_thetas)))
-  return min_thetas
+  if reco_directions != []:
+    for r_dir in reco_directions:
+      thetas_one_track = []
+      for t_dir in true_directions:
+        theta = np.arccos(np.dot(r_dir,t_dir)/(np.linalg.norm(r_dir)*np.linalg.norm(t_dir)))
+        if np.rad2deg(theta) > 90:
+          alpha = - (180 - np.rad2deg(theta))
+          thetas_one_track.append(np.deg2rad(alpha))
+        elif np.rad2deg(theta) <= 90:
+          thetas_one_track.append(theta)
+      sel_theta = [theta for theta in thetas_one_track if abs(theta) == (np.min(np.abs(thetas_one_track)))]
+      min_thetas.append((np.rad2deg(sel_theta)))
+      print("min_thetas: ", min_thetas)
+  for theta_arr in min_thetas:
+    for theta in theta_arr:
+      all_angles.append(theta)
+  print("angles: ", all_angles)
+  return all_angles
 
 def VertexCoordinatesHisto(true_vertices, reco_vertices, coord):
   diff_vertices = []
@@ -359,18 +368,20 @@ if __name__ == '__main__':
   all_true_vertices, all_true_directions, ev_numbers = ExtractTrueParameters(edepsim_files, selectedEvents)
   print("---------------------MC TRUTH-------------------------")
   # print("TRUE vertex: ", all_true_vertices)
-  # print("TRUE directions: ", len(all_true_directions))
+  print("TRUE directions: ", all_true_directions)
   #**********************************************************
 
+  ### VERTICES
   twoPlanes2Tracks_reco_vertices = []
   twoPlanes2Tracks_true_vertices = []
-  twoPlanes2Tracks_true_directions = []
   twoPlanes2Tracks_true_events = []
-
   onePlane2Tracks_reco_vertices = []
   onePlane2Tracks_true_vertices = []
-  onePlane2Tracks_true_directions = []
   onePlane2Tracks_true_events = []
+
+  ### DIRECTIONS
+  all_thetas = []
+  all_angles = []
 
   cluster_countsZY = []
   cluster_countsZX = []
@@ -448,7 +459,7 @@ if __name__ == '__main__':
       if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
         twoPlanes2Tracks += 1
         twoPlanes2Tracks_true_vertices.append(all_true_vertices[i])
-        twoPlanes2Tracks_true_directions.append(all_true_directions[i])
+        #twoPlanes2Tracks_true_directions.append(all_true_directions[i])
         twoPlanes2Tracks_true_events.append(ev_numbers[i])
         print("---------------------------RECO-----------------------------")
         reco_vertex = GetRecoVertex(all_collinear_pointsZX)
@@ -460,7 +471,7 @@ if __name__ == '__main__':
       #if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
         onePlane2Tracks += 1
         onePlane2Tracks_true_vertices.append(all_true_vertices[i])
-        onePlane2Tracks_true_directions.append(all_true_directions[i])
+        #onePlane2Tracks_true_directions.append(all_true_directions[i])
         onePlane2Tracks_true_events.append(ev_numbers[i])
         reco_vertex = GetRecoVertex(all_collinear_pointsZX)
         print("---------------------------RECO-----------------------------")
@@ -470,21 +481,29 @@ if __name__ == '__main__':
       #if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
       onePlane2Tracks += 1
       onePlane2Tracks_true_vertices.append(all_true_vertices[i])
-      onePlane2Tracks_true_directions.append(all_true_directions[i])
+      #onePlane2Tracks_true_directions.append(all_true_directions[i])
       onePlane2Tracks_true_events.append(ev_numbers[i])
       reco_vertex = GetRecoVertex(all_collinear_pointsZY)
       print("---------------------------RECO-----------------------------")
       print("RECO vertex 1plane2tracks: ", reco_vertex)
       onePlane2Tracks_reco_vertices.append(reco_vertex)
 
+    """RECO DIRECTION"""
+    all_reco_directions = []
+    reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
+    print("RECO directions: ", reco_directions)
+    #all_reco_directions.append(reco_directions)
 
-        # """RECO DIRECTION"""
-        # all_reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
-        # print("RECO directions: ", all_reco_directions)
-
-        # """ANGLE"""
-        # theta = GetRecoAngle(all_reco_directions, all_true_directions[i])
-        # print("RECO angle: ", theta)
+    """ANGLE"""
+    print(len(reco_directions))
+    print(len(all_true_directions[i]))
+    #a = [(1,0,0)]
+    #b = [(1,0,0), (0,1,0)]
+    if len(reco_directions) != 0:
+      theta = GetRecoAngle(reco_directions, all_true_directions[i])
+      print("RECO angle: ", theta)
+      all_thetas.append(theta)
+      print("all_thetas: ", all_thetas)
 
         #***********************************2D PLOT ZY***************************    
         # fig3 = plt.figure()
@@ -607,27 +626,50 @@ if __name__ == '__main__':
   print("2 piani 1 traccia: ", twoPlanes1Tracks)
   print("2 piani 2 tracce: ", twoPlanes2Tracks)
 
+  for theta_arr in all_thetas:
+    for angle in theta_arr:
+      all_angles.append(angle)
+
   twoPlanes2Tracks_true_vertices.append(onePlane2Tracks_true_vertices)
   twoPlanes2Tracks_reco_vertices.append(onePlane2Tracks_reco_vertices)
 
-  print("quanti cluster ZX: ", cluster_countsZX)
-  print("quanti cluster ZY: ", cluster_countsZY)
+  # print("quanti cluster ZX: ", cluster_countsZX)
+  # print("quanti cluster ZY: ", cluster_countsZY)
 
   coord = ["x","y","z"]
+  print("---RECO VERTEX---")
   for i, c in enumerate(coord):
     diff_vertices = VertexCoordinatesHisto(twoPlanes2Tracks_true_vertices, twoPlanes2Tracks_reco_vertices, i)
     fig = plt.figure()
     plt.xlabel(f"{c} reco - {c} true")
-    plt.ylabel("counts")
+    plt.ylabel("n entries")
     #plt.hist(diff_vertices, 50, (-60,60), histtype='step')
     n, bins, patches = plt.hist(diff_vertices, 50, (-100,100), histtype='step')
     #fit the histo
     xmin, xmax = plt.xlim()
     x = np.linspace(xmin, xmax, len(n))
-    #y = n
     popt, pcov = scp.optimize.curve_fit(gauss, x, n, p0 = [10, 0, 5])
+    print(f"{c} mu + mu_err:", popt[1], pcov[1][1])
+    print(f"{c} std + std_err: ", popt[2], pcov[2][2])
     #print("gauss: ", max(gauss))
     plt.plot(x, gauss(x,*popt), color = 'red')
     plt.title(f"fit values {popt[1],popt[2]}")
+
+  print("---RECO ANGLE---")
+  fig6 = plt.figure()
+  #plt.hist(diff_vertices, 50, (-60,60), histtype='step')
+  n2, bins, patches = plt.hist(all_angles, 50, (-90,90), histtype='step')
+  plt.xlabel("angle between reco and MC track")
+  plt.ylabel("n entries")
+  #fit the histo
+  xmin2, xmax2 = plt.xlim()
+  x2 = np.linspace(xmin, xmax, len(n))
+  #y = n
+  popt2, pcov2 = scp.optimize.curve_fit(gauss, x2, n2, p0 = [60, 0, 5])
+  print("angle mu + mu_err:", popt2[1], pcov2[1][1])
+  print("angle std + std_err: ", popt2[2], pcov2[2][2])
+  plt.plot(x, gauss(x,*popt2), color = 'red')
+  plt.title(f"fit values {popt2[1],popt2[2]}")
+
   plt.show()
 
