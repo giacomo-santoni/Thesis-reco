@@ -122,7 +122,7 @@ def HoughTransform(points, theta_resolution=5, rho_resolution=3*defs["voxel_size
   return accumulator, rhos, thetas
 
 def FindLocalMaxima(accumulator,lpcs):
-  print("len lpcs: ", len(lpcs))
+  #print("len lpcs: ", len(lpcs))
   # if len(lpcs)>=12: 
   #   thr = len(lpcs)*0.3
   #   local_max_indices = sk.feature.peak_local_max(accumulator, min_distance=7, threshold_abs = thr, exclude_border=False)
@@ -292,27 +292,29 @@ def GetRecoAngle(reco_directions, true_directions):
           thetas_one_track.append(theta)
       sel_theta = [theta for theta in thetas_one_track if abs(theta) == (np.min(np.abs(thetas_one_track)))]
       min_thetas.append((np.rad2deg(sel_theta)))
-      print("min_thetas: ", min_thetas)
   for theta_arr in min_thetas:
     for theta in theta_arr:
       all_angles.append(theta)
-  print("angles: ", all_angles)
   return all_angles
 
 def VertexCoordinatesHisto(true_vertices, reco_vertices, coord):
   diff_vertices = []
-  fit_pars = []
   for i, true_vertex in enumerate(true_vertices):
-    if isinstance(true_vertex, np.ndarray):
+    if isinstance(reco_vertices[i], tuple):
       diff = (np.asarray(reco_vertices[i][coord]) - np.asarray(true_vertex[coord]))
       diff_vertices.append(diff)
 
-  return diff_vertices#, fit_pars
+  return diff_vertices
 
 def gauss(x,amp,mu,sigma):
   return amp*np.exp(-((x-mu)**2)/(2*sigma**2))
 
-
+def merge_lists_with_holes(list1, list2):
+    set1 = set(list1)
+    set2 = set(list2)
+    merged_set = set1.union(set2)
+    merged_list = list(merged_set)
+    return merged_list
 
 
 if __name__ == '__main__':
@@ -366,9 +368,9 @@ if __name__ == '__main__':
 
   #************************MC TRUTH**************************
   all_true_vertices, all_true_directions, ev_numbers = ExtractTrueParameters(edepsim_files, selectedEvents)
-  print("---------------------MC TRUTH-------------------------")
+  # print("---------------------MC TRUTH-------------------------")
   # print("TRUE vertex: ", all_true_vertices)
-  print("TRUE directions: ", all_true_directions)
+  # print("TRUE directions: ", all_true_directions)
   #**********************************************************
 
   ### VERTICES
@@ -391,6 +393,12 @@ if __name__ == '__main__':
   onePlane1Tracks = 0
   twoPlanes2Tracks = 0
   twoPlanes1Tracks = 0
+  twoPlanes0Tracks = 0
+  twoZX_zeroZY = 0
+  twoZX_oneZY = 0
+  twoZY_zeroZX = 0
+  twoZY_oneZX = 0
+
 
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
   # for events_file in selectedEvents:
@@ -451,13 +459,20 @@ if __name__ == '__main__':
       all_collinear_pointsZY = FindClosestToLinePointsZY(points, rho_thetas_maxZY)
       all_collinear_pointsZX = FindClosestToLinePointsZX(points, rho_thetas_maxZX)
 
+      # all_collinear_points = []
+      # for i, collinear_points in enumerate(all_collinear_pointsZX):
+      #   all_collinear_points = merge_lists_with_holes(collinear_points, all_collinear_pointsZY[i])
+      # print(all_collinear_points)
+
+
     cluster_countsZY.append(len(all_collinear_pointsZY))
     cluster_countsZX.append(len(all_collinear_pointsZX))
 
     """condition for two tracks in both planes"""
     if len(all_collinear_pointsZX) == 2 and len(all_collinear_pointsZY) == 2:
+      twoPlanes2Tracks += 1
       if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
-        twoPlanes2Tracks += 1
+        #twoPlanes2Tracks += 1
         twoPlanes2Tracks_true_vertices.append(all_true_vertices[i])
         #twoPlanes2Tracks_true_directions.append(all_true_directions[i])
         twoPlanes2Tracks_true_events.append(ev_numbers[i])
@@ -503,7 +518,6 @@ if __name__ == '__main__':
       theta = GetRecoAngle(reco_directions, all_true_directions[i])
       print("RECO angle: ", theta)
       all_thetas.append(theta)
-      print("all_thetas: ", all_thetas)
 
         #***********************************2D PLOT ZY***************************    
         # fig3 = plt.figure()
@@ -539,24 +553,35 @@ if __name__ == '__main__':
         #*********************************************************************
 
         #***********************************2D PLOT ZX***************************
-        # if len(all_collinear_pointsZX) == 0 and (len(all_collinear_pointsZY) == 2 or len(all_collinear_pointsZY) == 1):
-        #   onePlane0Tracks += 1
-        # if len(all_collinear_pointsZY) == 0 and (len(all_collinear_pointsZX) == 2 or len(all_collinear_pointsZX) == 1):
-        #   onePlane0Tracks += 1
+    # if len(all_collinear_pointsZX) == 0 and (len(all_collinear_pointsZY) == 2 or len(all_collinear_pointsZY) == 1):
+    #   onePlane0Tracks += 1
+    # if len(all_collinear_pointsZY) == 0 and (len(all_collinear_pointsZX) == 2 or len(all_collinear_pointsZX) == 1):
+    #   onePlane0Tracks += 1
+
+    if len(all_collinear_pointsZX) == 0 and len(all_collinear_pointsZY) == 0:
+      twoPlanes0Tracks += 1
         
-        # if (len(all_collinear_pointsZX) == 1 and len(all_collinear_pointsZY) == 0) or (len(all_collinear_pointsZY) == 1 and len(all_collinear_pointsZX) == 0):
-        #   onePlane1Tracks += 1
-      
-        # if len(all_collinear_pointsZX) == 2 and (len(all_collinear_pointsZY) == 0 or len(all_collinear_pointsZY) == 1):
-        #   onePlane2Tracks += 1
-        # if len(all_collinear_pointsZY) == 2 and (len(all_collinear_pointsZX) == 0 or len(all_collinear_pointsZX) == 1):
-        #   onePlane2Tracks += 1
+    if (len(all_collinear_pointsZX) == 1 and len(all_collinear_pointsZY) == 0) or (len(all_collinear_pointsZY) == 1 and len(all_collinear_pointsZX) == 0):
+      onePlane1Tracks += 1
 
-        # if len(all_collinear_pointsZX) == 1 and len(all_collinear_pointsZY) == 1:
-        #   twoPlanes1Tracks += 1
+    if len(all_collinear_pointsZX) == 1 and len(all_collinear_pointsZY) == 1:
+      twoPlanes1Tracks += 1
 
-        # if len(all_collinear_pointsZX) == 2 and len(all_collinear_pointsZY) == 2:
-        #   twoPlanes2Tracks += 1
+    if len(all_collinear_pointsZX) == 2 and len(all_collinear_pointsZY) == 0:
+      twoZX_zeroZY += 1
+
+    if len(all_collinear_pointsZX) == 2 and len(all_collinear_pointsZY) == 1:
+      twoZX_oneZY += 1
+
+    if len(all_collinear_pointsZY) == 2 and len(all_collinear_pointsZX) == 0:
+      twoZY_zeroZX += 1
+
+    if len(all_collinear_pointsZY) == 2 and len(all_collinear_pointsZX) == 1:
+      twoZY_oneZX += 1
+
+    #if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
+
+  
 
         # fig4 = plt.figure()
         # ax = fig4.add_subplot()
@@ -620,11 +645,17 @@ if __name__ == '__main__':
         #plt.show()
 
   print("tot events: ", len(tot_events))
-  print("1 piano 0 tracce: ", onePlane0Tracks)
-  print("1 piano 1 traccia: ", onePlane1Tracks)
-  print("1 piano 2 tracce: ", onePlane2Tracks)
+  print("events: ", tot_events)
+  #print("1 piano 0 tracce: ", onePlane0Tracks)
+  print("2 piani 0 tracce: ", twoPlanes0Tracks)
+  print("1 piano 1 traccia (e nell'altro 0): ", onePlane1Tracks)
+  print("1 piano 2 tracce (l'altro o 0 o 1): ", onePlane2Tracks)
   print("2 piani 1 traccia: ", twoPlanes1Tracks)
   print("2 piani 2 tracce: ", twoPlanes2Tracks)
+  print("2 tracce su ZX e 0 su ZY", twoZX_zeroZY)
+  print("2 tracce su ZX e 1 su ZY", twoZX_oneZY)
+  print("2 tracce su ZY e 0 su ZX", twoZY_zeroZX)
+  print("2 tracce su ZY e 1 su ZX", twoZY_oneZX)
 
   for theta_arr in all_thetas:
     for angle in theta_arr:
@@ -649,11 +680,17 @@ if __name__ == '__main__':
     xmin, xmax = plt.xlim()
     x = np.linspace(xmin, xmax, len(n))
     popt, pcov = scp.optimize.curve_fit(gauss, x, n, p0 = [10, 0, 5])
+    amp, mu, sigma = popt
+    amp_err, mu_err, sigma_err = pcov
     print(f"{c} mu + mu_err:", popt[1], pcov[1][1])
     print(f"{c} std + std_err: ", popt[2], pcov[2][2])
     #print("gauss: ", max(gauss))
     plt.plot(x, gauss(x,*popt), color = 'red')
+    # plt.text(1.05, 1.05, f'Amp: {amp:.2f}"±"{amp_err:.2f}\nMean: {mu:.2f}"±"{mu_err:.2f}\nSigma: {sigma:.2f}"±"{sigma_err}',
+    #      ha='right', va='top', transform=plt.gca().transAxes,
+    #      bbox=dict(facecolor='white', edgecolor='black'))#, boxstyle='round,pad=0.5'))
     plt.title(f"fit values {popt[1],popt[2]}")
+  #\nChi quadro: {chi_squared:.2f}\nEntries: {len(x_data)}',
 
   print("---RECO ANGLE---")
   fig6 = plt.figure()
