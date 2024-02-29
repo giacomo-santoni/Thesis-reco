@@ -303,18 +303,19 @@ def VertexCoordinatesHisto(true_vertices, reco_vertices, coord):
     if isinstance(reco_vertices[i], tuple):
       diff = (np.asarray(reco_vertices[i][coord]) - np.asarray(true_vertex[coord]))
       diff_vertices.append(diff)
-
   return diff_vertices
+
+def DistanceRecoTrueVertex(true_vertices, reco_vertices):
+  distance_vertices = []
+  for i, true_vertex in enumerate(true_vertices):
+    if isinstance(reco_vertices[i], tuple):
+      dist = np.linalg.norm(np.asarray(reco_vertices[i]) - np.asarray(true_vertex))
+      distance_vertices.append(dist)
+  return distance_vertices
 
 def gauss(x,amp,mu,sigma):
   return amp*np.exp(-((x-mu)**2)/(2*sigma**2))
 
-def merge_lists_with_holes(list1, list2):
-    set1 = set(list1)
-    set2 = set(list2)
-    merged_set = set1.union(set2)
-    merged_list = list(merged_set)
-    return merged_list
 
 
 if __name__ == '__main__':
@@ -401,8 +402,6 @@ if __name__ == '__main__':
 
 
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
-  # for events_file in selectedEvents:
-  #   print("events in file: ", events_file)
   for i in range(len(tot_events)):
     if len(centers_all_ev[i]) != 0:
       all_clusters_in_ev, y_pred = Clustering(centers_all_ev[i], amps_all_ev[i])
@@ -459,12 +458,6 @@ if __name__ == '__main__':
       all_collinear_pointsZY = FindClosestToLinePointsZY(points, rho_thetas_maxZY)
       all_collinear_pointsZX = FindClosestToLinePointsZX(points, rho_thetas_maxZX)
 
-      # all_collinear_points = []
-      # for i, collinear_points in enumerate(all_collinear_pointsZX):
-      #   all_collinear_points = merge_lists_with_holes(collinear_points, all_collinear_pointsZY[i])
-      # print(all_collinear_points)
-
-
     cluster_countsZY.append(len(all_collinear_pointsZY))
     cluster_countsZX.append(len(all_collinear_pointsZX))
 
@@ -507,13 +500,10 @@ if __name__ == '__main__':
     all_reco_directions = []
     reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
     print("RECO directions: ", reco_directions)
-    #all_reco_directions.append(reco_directions)
 
     """ANGLE"""
     print(len(reco_directions))
     print(len(all_true_directions[i]))
-    #a = [(1,0,0)]
-    #b = [(1,0,0), (0,1,0)]
     if len(reco_directions) != 0:
       theta = GetRecoAngle(reco_directions, all_true_directions[i])
       print("RECO angle: ", theta)
@@ -667,46 +657,96 @@ if __name__ == '__main__':
   # print("quanti cluster ZX: ", cluster_countsZX)
   # print("quanti cluster ZY: ", cluster_countsZY)
 
-  coord = ["x","y","z"]
-  print("---RECO VERTEX---")
+  ####VERTEX COORD########
+  coord = ["X","Y","Z"]
   for i, c in enumerate(coord):
+    print(f"---RECO VERTEX {c}---")
     diff_vertices = VertexCoordinatesHisto(twoPlanes2Tracks_true_vertices, twoPlanes2Tracks_reco_vertices, i)
     fig = plt.figure()
     plt.xlabel(f"{c} reco - {c} true")
     plt.ylabel("n entries")
-    #plt.hist(diff_vertices, 50, (-60,60), histtype='step')
     n, bins, patches = plt.hist(diff_vertices, 50, (-100,100), histtype='step')
+    
     #fit the histo
     xmin, xmax = plt.xlim()
     x = np.linspace(xmin, xmax, len(n))
     popt, pcov = scp.optimize.curve_fit(gauss, x, n, p0 = [10, 0, 5])
     amp, mu, sigma = popt
-    amp_err, mu_err, sigma_err = pcov
+    amp_err, mu_err, sigma_err = np.diagonal(pcov)
+    chi_square, p_value = scp.stats.chisquare(n)
+    print("vertex coord chi square: ", chi_square, p_value)
     print(f"{c} mu + mu_err:", popt[1], pcov[1][1])
     print(f"{c} std + std_err: ", popt[2], pcov[2][2])
-    #print("gauss: ", max(gauss))
     plt.plot(x, gauss(x,*popt), color = 'red')
-    # plt.text(1.05, 1.05, f'Amp: {amp:.2f}"±"{amp_err:.2f}\nMean: {mu:.2f}"±"{mu_err:.2f}\nSigma: {sigma:.2f}"±"{sigma_err}',
-    #      ha='right', va='top', transform=plt.gca().transAxes,
-    #      bbox=dict(facecolor='white', edgecolor='black'))#, boxstyle='round,pad=0.5'))
-    plt.title(f"fit values {popt[1],popt[2]}")
-  #\nChi quadro: {chi_squared:.2f}\nEntries: {len(x_data)}',
+    
+    fit_info = f'Entries: {len(diff_vertices)}\nConst: {amp:.2f}±{amp_err:.2f}\nMean: {mu:.2f}±{mu_err:.2f}\nSigma: {sigma:.2f}±{sigma_err:.2f}'
+    plt.text(0.95, 0.95, f"      Vertex {c}     ",
+         ha='right', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
+    plt.text(0.95, 0.95, fit_info,
+         ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
+    #Mean: {np.mean(diff_vertices):.2f}\nStd Dev: {np.std(diff_vertices):.2f}\n$\chi^2$/ndf: {chi_square:.2f}/{len(bins) - 1}\nProb: {p_value:.4f}\n
 
+    plt.title(f"{c} - {c}mc")
+  ############################
+  
+
+  ########DISTANCE VERTEX##########
+  print("------RECO DISTANCE------")
+  fig5 = plt.figure()
+  distance_vertices = DistanceRecoTrueVertex(twoPlanes2Tracks_true_vertices, twoPlanes2Tracks_reco_vertices)
+  plt.xlabel(f"distance reco - true vertex")
+  plt.ylabel("n entries")
+  n3, bins3, _ = plt.hist(distance_vertices, 50, (0,200), histtype='step')
+  
+  #fit the histo
+  # xmin3, xmax3 = plt.xlim()
+  # x3 = np.linspace(xmin3, xmax3, len(n3))
+  # popt3, pcov3 = scp.optimize.curve_fit(gauss, x3, n3, p0 = [10, 20, 10])
+  # amp3, mu3, sigma3 = popt3
+  # amp3_err, mu3_err, sigma3_err = np.diagonal(pcov3)
+  # chi_square3, p_value3 = scp.stats.chisquare(n3)
+  # print("distance chi square: ", chi_square3, p_value3)
+  # print(f"mu + mu_err:", popt3[1], pcov3[1][1])
+  # print(f"std + std_err: ", popt3[2], pcov3[2][2])
+  # plt.plot(x3, gauss(x3,*popt), color = 'red')
+  
+  fit_info = f'Entries: {len(distance_vertices)}\nMean: {np.mean(distance_vertices):.2f}\nStd Dev: {np.std(distance_vertices):.2f}'#\n$\chi^2$/ndf: {chi_square3:.2f}/{len(bins3) - 1}\nProb: {p_value3:.2f}\nConstant: {amp3:.2f}±{amp3_err:.2f}\nMean: {mu3:.2f}±{mu3_err:.2f}\nSigma: {sigma3:.2f}±{sigma3_err:.2f}'
+  plt.text(0.8035, 0.99, "Vertex distance",
+        ha='left', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
+  plt.text(0.9, 0.95, fit_info,
+        ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
+
+  plt.title(f"distance reco - mc")
+  ####################################
+
+  ############ANGLE###################
   print("---RECO ANGLE---")
   fig6 = plt.figure()
-  #plt.hist(diff_vertices, 50, (-60,60), histtype='step')
-  n2, bins, patches = plt.hist(all_angles, 50, (-90,90), histtype='step')
-  plt.xlabel("angle between reco and MC track")
+  n2, bins2, _ = plt.hist(all_angles, 50, (-90,90), histtype='step')
+  plt.xlabel("angle between reco and MC track ($^\circ$)")
   plt.ylabel("n entries")
   #fit the histo
   xmin2, xmax2 = plt.xlim()
-  x2 = np.linspace(xmin, xmax, len(n))
+  x2 = np.linspace(xmin2, xmax2, len(n2))
   #y = n
   popt2, pcov2 = scp.optimize.curve_fit(gauss, x2, n2, p0 = [60, 0, 5])
+  amp2, mu2, sigma2 = popt2
+  amp2_err, mu2_err, sigma2_err = np.diagonal(pcov2)
+  chi_square2, p_value2 = scp.stats.chisquare(n2)
+  print("angle chi square: ", chi_square2, p_value2)
   print("angle mu + mu_err:", popt2[1], pcov2[1][1])
   print("angle std + std_err: ", popt2[2], pcov2[2][2])
-  plt.plot(x, gauss(x,*popt2), color = 'red')
-  plt.title(f"fit values {popt2[1],popt2[2]}")
+  plt.plot(x2, gauss(x2,*popt2), color = 'red')
+
+  fit_info = f'Entries: {len(all_angles)}\nConst: {amp2:.2f}±{amp2_err:.2f}\nMean: {mu2:.2f}±{mu2_err:.2f}\nSigma: {sigma2:.2f}±{sigma2_err:.2f}'
+  plt.text(0.95, 0.95, "     angle      ",
+        ha='right', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
+  plt.text(0.95, 0.95, fit_info,
+        ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
+  #Mean: {np.mean(all_angles):.2f}\nStd Dev: {np.std(all_angles):.2f}\n$\chi^2$/ndf: {chi_square2:.2f}/{len(bins2) - 1}\nProb: {p_value2:.4f}
+
+  plt.title("Angle")
+  ####################################
 
   plt.show()
 
