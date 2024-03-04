@@ -146,6 +146,7 @@ def FindClosestToLinePointsZY(points, rho_thetas_max):
   all_collinear_pointsZY = []
   collinear_points1 = []
   collinear_points2 = []
+  all_distancesZY = []
   n=0
   #coord1=x, coord2=y, coord3=z
   for coord1,coord2,coord3 in points:
@@ -160,6 +161,8 @@ def FindClosestToLinePointsZY(points, rho_thetas_max):
     for tuple in dist_point_to_lines: 
       if tuple[0] == min_dist and tuple[0]<45:
         closest_line = (tuple[1],tuple[2])
+      if tuple[0] == min_dist:
+        all_distancesZY.append(tuple[0])
 
     if closest_line == rho_thetas_max[0]:
       collinear_points1.append((coord1,coord2,coord3))
@@ -170,12 +173,13 @@ def FindClosestToLinePointsZY(points, rho_thetas_max):
     all_collinear_pointsZY.append(collinear_points1)
   if len(rho_thetas_max)>1 and len(collinear_points2) != 0 and collinear_points2 != []:
     all_collinear_pointsZY.append(collinear_points2)
-  return all_collinear_pointsZY
+  return all_collinear_pointsZY, all_distancesZY
 
 def FindClosestToLinePointsZX(points, rho_thetas_max):
   all_collinear_pointsZX = []
   collinear_points1 = []
   collinear_points2 = []
+  all_distancesZX = []
   n=0
   #coord1=x, coord2=y, coord3=z
   for coord1,coord2,coord3 in points:
@@ -190,6 +194,8 @@ def FindClosestToLinePointsZX(points, rho_thetas_max):
     for tuple in dist_point_to_lines: 
       if tuple[0] == min_dist and tuple[0]<45:
         closest_line = (tuple[1],tuple[2])
+      if tuple[0] == min_dist:
+        all_distancesZX.append(tuple[0])
 
     if closest_line == rho_thetas_max[0]:
       collinear_points1.append((coord1,coord2,coord3))
@@ -200,7 +206,7 @@ def FindClosestToLinePointsZX(points, rho_thetas_max):
     all_collinear_pointsZX.append(collinear_points1)
   if len(rho_thetas_max)>1 and len(collinear_points2) != 0 and collinear_points2 != []:
     all_collinear_pointsZX.append(collinear_points2)
-  return all_collinear_pointsZX
+  return all_collinear_pointsZX, all_distancesZX
 
 def ExtractTrueParameters(file_list, events):
   vertices_coord = []
@@ -262,21 +268,22 @@ def GetRecoVertex(all_collinear_points):
 def GetRecoDirections(reco_vertex, all_collinear_points):
   all_reco_directions = []
   for collinear_points in all_collinear_points: 
-    if len(collinear_points) != 0:
-      collinear_points = np.asarray(collinear_points)
-      slopeZY, interceptZY = Fit(collinear_points[:,2], collinear_points[:,1])
-      slopeZX, interceptZX = Fit(collinear_points[:,2], collinear_points[:,0])
-      z = collinear_points[0,2]
-      point2 = np.asarray((slopeZX*z + interceptZX, slopeZY*z + interceptZY, z))#x,y,z
-      if isinstance(reco_vertex, np.ndarray):
-        reco_vertex = np.asarray(reco_vertex)
-        direction = (reco_vertex - point2)
-      elif not isinstance(reco_vertex, np.ndarray):
-        if len(collinear_points)>1:
-          z1 = collinear_points[1,2]
-          point1 = np.asarray((slopeZX*z1 + interceptZX, slopeZY*z1 + interceptZY, z1))#x,y,z
-          direction = (point1 - point2)
-          all_reco_directions.append(direction)  
+    #if len(collinear_points) != 0:
+    collinear_points = np.asarray(collinear_points)
+    slopeZY, interceptZY = Fit(collinear_points[:,2], collinear_points[:,1])
+    slopeZX, interceptZX = Fit(collinear_points[:,2], collinear_points[:,0])
+    z = collinear_points[0,2]
+    point2 = np.asarray((slopeZX*z + interceptZX, slopeZY*z + interceptZY, z))#x,y,z
+    #if isinstance(reco_vertex, np.ndarray):
+    reco_vertex = np.asarray(reco_vertex)
+    direction = (reco_vertex - point2)
+    all_reco_directions.append(direction)
+    # elif not isinstance(reco_vertex, np.ndarray):
+    #   if len(collinear_points)>1:
+    #     z1 = collinear_points[1,2]
+    #     point1 = np.asarray((slopeZX*z1 + interceptZX, slopeZY*z1 + interceptZY, z1))#x,y,z
+    #     direction = (point1 - point2)
+    #     all_reco_directions.append(direction)  
   return all_reco_directions 
 
 def GetRecoAngle(reco_directions, true_directions):
@@ -430,6 +437,15 @@ if __name__ == '__main__':
   twoZX_oneZY = 0
   twoZY_zeroZX = 0
   twoZY_oneZX = 0
+  n_reco = 0
+  n_angle = 0
+  if_angle = 0
+
+  all_distances_all_evZY = []
+  all_distances_all_evZX = []
+  final_distZY = []
+  final_distZX = []
+  final_all_dist = []
 
 
   """LOOP SU TUTTI GLI EVENTI SELEZIONATI"""
@@ -486,8 +502,10 @@ if __name__ == '__main__':
       #   plt.plot(np.rad2deg(thetas[w[1]]),rhos[w[0]], 'bo')
       #*********************************************************************
 
-      all_collinear_pointsZY = FindClosestToLinePointsZY(points, rho_thetas_maxZY)
-      all_collinear_pointsZX = FindClosestToLinePointsZX(points, rho_thetas_maxZX)
+      all_collinear_pointsZY, all_distancesZY = FindClosestToLinePointsZY(points, rho_thetas_maxZY)
+      all_distances_all_evZY.append(all_distancesZY)
+      all_collinear_pointsZX, all_distancesZX = FindClosestToLinePointsZX(points, rho_thetas_maxZX)
+      all_distances_all_evZX.append(all_distancesZX)
 
     cluster_countsZY.append(len(all_collinear_pointsZY))
     cluster_countsZX.append(len(all_collinear_pointsZX))
@@ -530,26 +548,50 @@ if __name__ == '__main__':
     """RECO DIRECTION"""
     all_reco_directions = []
     if len(all_collinear_pointsZY) == 2 and len(all_collinear_pointsZX) == 1:
+      n_reco+=1
       reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
-      selected_true_directions.append(all_true_directions[i])
+      print("RECODIR: ", reco_directions)
+      #selected_true_directions.append(all_true_directions[i])
+      theta = GetRecoAngle(reco_directions, all_true_directions[i])
+      n_angle += 1
+      print("RECO angles: ", theta)
+      all_thetas.append(theta)
+      #all_reco_directions.append(reco_directions)
     elif len(all_collinear_pointsZY) == 1 and len(all_collinear_pointsZX) == 2:
       reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZX)
-      selected_true_directions.append(all_true_directions[i])
+      #selected_true_directions.append(all_true_directions[i])
+      theta = GetRecoAngle(reco_directions, all_true_directions[i])
+      n_angle += 1
+      print("RECO angles: ", theta)
+      all_thetas.append(theta)
+      #all_reco_directions.append(reco_directions)
     elif len(all_collinear_pointsZY) == 2 and len(all_collinear_pointsZX) == 2:
       reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
-      selected_true_directions.append(all_true_directions[i])
+      #selected_true_directions.append(all_true_directions[i])
+      theta = GetRecoAngle(reco_directions, all_true_directions[i])
+      n_angle += 1
+      print("RECO angles: ", theta)
+      all_thetas.append(theta)
+      #all_reco_directions.append(reco_directions)
     elif len(all_collinear_pointsZY) == 1 and len(all_collinear_pointsZX) == 1:
       reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
-      selected_true_directions.append(all_true_directions[i])
-    print("RECO directions: ", reco_directions)
-
-    """ANGLE"""
-    print(len(reco_directions))
-    print(len(all_true_directions[i]))
-    if len(reco_directions) != 0:
+      #selected_true_directions.append(all_true_directions[i])
       theta = GetRecoAngle(reco_directions, all_true_directions[i])
-      print("RECO angle: ", theta)
+      n_angle += 1
+      print("RECO angles: ", theta)
       all_thetas.append(theta)
+      #all_reco_directions.append(reco_directions)
+      print("RECO directions: ", reco_directions)
+
+      # """ANGLE"""
+      # # print("test1: ", len(reco_directions))
+      # # print("test2: ", len(all_collinear_pointsZY))
+      # #if len(reco_directions) != 0:
+      # #for i, reco_directions in enumerate(all_reco_directions):
+      # theta = GetRecoAngle(reco_directions, all_true_directions[i])
+      # n_angle += 1
+      # print("RECO angles: ", theta)
+      # all_thetas.append(theta)
 
         #***********************************2D PLOT ZY***************************    
         # fig3 = plt.figure()
@@ -688,10 +730,13 @@ if __name__ == '__main__':
   print("2 tracce su ZX e 1 su ZY", twoZX_oneZY)
   print("2 tracce su ZY e 0 su ZX", twoZY_zeroZX)
   print("2 tracce su ZY e 1 su ZX", twoZY_oneZX)
+  print("sono dentro all'if: ", n_reco)
+  print("NUMERO RECO ANGLE: ", n_angle)
 
   for theta_arr in all_thetas:
     for angle in theta_arr:
       all_angles.append(angle)
+  print("NUMERO TOT angles: ", len(all_angles))
 
   for i in range(len(onePlane2Tracks_reco_vertices)):
     twoPlanes2Tracks_true_vertices.append(onePlane2Tracks_true_vertices[i])
@@ -724,8 +769,8 @@ if __name__ == '__main__':
     plt.plot(x, gauss(x,*popt), color = 'red')
     
     fit_info = f'Entries: {len(diff_vertices)}\nConst: {amp:.2f}±{amp_err:.2f}\nMean: {mu:.2f}±{mu_err:.2f}\nSigma: {sigma:.2f}±{sigma_err:.2f}'
-    plt.text(0.95, 0.95, f"      Vertex {c}     ",
-         ha='right', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
+    # plt.text(0.95, 0.95, f"      Vertex {c}     ",
+    #      ha='right', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
     plt.text(0.95, 0.95, fit_info,
          ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
     #Mean: {np.mean(diff_vertices):.2f}\nStd Dev: {np.std(diff_vertices):.2f}\n$\chi^2$/ndf: {chi_square:.2f}/{len(bins) - 1}\nProb: {p_value:.4f}\n
@@ -754,11 +799,11 @@ if __name__ == '__main__':
   # print(f"std + std_err: ", popt3[2], pcov3[2][2])
   # plt.plot(x3, gauss(x3,*popt), color = 'red')
   
-  fit_info = f'Entries: {len(distance_vertices)}\nMean: {np.mean(distance_vertices):.2f}\nStd Dev: {np.std(distance_vertices):.2f}'#\n$\chi^2$/ndf: {chi_square3:.2f}/{len(bins3) - 1}\nProb: {p_value3:.2f}\nConstant: {amp3:.2f}±{amp3_err:.2f}\nMean: {mu3:.2f}±{mu3_err:.2f}\nSigma: {sigma3:.2f}±{sigma3_err:.2f}'
-  plt.text(0.8035, 0.99, "Vertex distance",
-        ha='left', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
-  plt.text(0.9, 0.95, fit_info,
-        ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
+  # fit_info = f'Entries: {len(distance_vertices)}\nMean: {np.mean(distance_vertices):.2f}\nStd Dev: {np.std(distance_vertices):.2f}'#\n$\chi^2$/ndf: {chi_square3:.2f}/{len(bins3) - 1}\nProb: {p_value3:.2f}\nConstant: {amp3:.2f}±{amp3_err:.2f}\nMean: {mu3:.2f}±{mu3_err:.2f}\nSigma: {sigma3:.2f}±{sigma3_err:.2f}'
+  # plt.text(0.8035, 0.99, "Vertex distance",
+  #       ha='left', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
+  # plt.text(0.9, 0.95, fit_info,
+        #ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
 
   plt.title(f"distance reco - mc")
   ####################################
@@ -771,7 +816,7 @@ if __name__ == '__main__':
   plt.ylabel("n entries")
   #fit the histo
   xmin2, xmax2 = plt.xlim()
-  x2 = np.linspace(xmin2, xmax2, len(n2))
+  x2 = np.linspace(-75, 75, len(n2))
   #y = n
   popt2, pcov2 = scp.optimize.curve_fit(gauss, x2, n2, p0 = [60, 0, 5])
   amp2, mu2, sigma2 = popt2
@@ -783,14 +828,43 @@ if __name__ == '__main__':
   plt.plot(x2, gauss(x2,*popt2), color = 'red')
 
   fit_info = f'Entries: {len(all_angles)}\nConst: {amp2:.2f}±{amp2_err:.2f}\nMean: {mu2:.2f}±{mu2_err:.2f}\nSigma: {sigma2:.2f}±{sigma2_err:.2f}'
-  plt.text(0.95, 0.95, "     angle      ",
-        ha='right', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
+  # plt.text(0.95, 0.95, "     angle      ",
+  #       ha='right', va='top', transform=plt.gca().transAxes, weight='bold', bbox=dict(facecolor='white', edgecolor='black'))
   plt.text(0.95, 0.95, fit_info,
         ha='right', va='top', transform=plt.gca().transAxes, bbox=dict(facecolor='white', edgecolor='black'))
   #Mean: {np.mean(all_angles):.2f}\nStd Dev: {np.std(all_angles):.2f}\n$\chi^2$/ndf: {chi_square2:.2f}/{len(bins2) - 1}\nProb: {p_value2:.4f}
 
   plt.title("Angle")
   ####################################
+
+  for all_dist in all_distances_all_evZY:
+    for dist in all_dist:
+      final_distZY.append(dist)
+
+  for all_dist in all_distances_all_evZX:
+    for dist in all_dist:
+      final_distZX.append(dist)
+
+  fig9 = plt.figure()
+  plt.hist(final_distZY, 100, histtype='step')
+  plt.xlabel("distance lpc point from the closest hough line (mm)")
+  plt.ylabel("n entries")
+  plt.title("ZY plane")
+
+  fig10 = plt.figure()
+  plt.hist(final_distZX, 100, histtype='step')
+  plt.xlabel("distance lpc point from the closest hough line (mm)")
+  plt.ylabel("n entries")
+  plt.title("ZX plane")
+
+  for dist in final_distZX:
+    final_distZY.append(dist)
+
+  fig11 = plt.figure()
+  plt.hist(final_distZY, 100, histtype='step')
+  plt.xlabel("distance lpc point from the closest hough line (mm)")
+  plt.ylabel("n entries")
+  plt.title("both planes")
 
   plt.show()
 
