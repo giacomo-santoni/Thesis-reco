@@ -166,8 +166,9 @@ def FindClosestToLinePointsZY(points, rho_thetas_max):
     elif len(rho_thetas_max)>1 and closest_line == rho_thetas_max[1]:
       collinear_points2.append((coord1,coord2,coord3))
 
-  all_collinear_pointsZY.append(collinear_points1)
-  if len(rho_thetas_max)>1 and len(collinear_points2) != 0:
+  if collinear_points1 != []:
+    all_collinear_pointsZY.append(collinear_points1)
+  if len(rho_thetas_max)>1 and len(collinear_points2) != 0 and collinear_points2 != []:
     all_collinear_pointsZY.append(collinear_points2)
   return all_collinear_pointsZY
 
@@ -195,8 +196,9 @@ def FindClosestToLinePointsZX(points, rho_thetas_max):
     elif len(rho_thetas_max)>1 and closest_line == rho_thetas_max[1]:
       collinear_points2.append((coord1,coord2,coord3))
 
-  all_collinear_pointsZX.append(collinear_points1)
-  if len(rho_thetas_max)>1 and len(collinear_points2) != 0:
+  if collinear_points1  != []:
+    all_collinear_pointsZX.append(collinear_points1)
+  if len(rho_thetas_max)>1 and len(collinear_points2) != 0 and collinear_points2 != []:
     all_collinear_pointsZX.append(collinear_points2)
   return all_collinear_pointsZX
 
@@ -299,10 +301,16 @@ def GetRecoAngle(reco_directions, true_directions):
 
 def VertexCoordinatesHisto(true_vertices, reco_vertices, coord):
   diff_vertices = []
+  n = 0
+  p = 0
   for i, true_vertex in enumerate(true_vertices):
+    p += 1
     if isinstance(reco_vertices[i], tuple):
+      n += 1
       diff = (np.asarray(reco_vertices[i][coord]) - np.asarray(true_vertex[coord]))
       diff_vertices.append(diff)
+  print("dopo if array: ", n)
+  print("prima if array: ", p)
   return diff_vertices
 
 def DistanceRecoTrueVertex(true_vertices, reco_vertices):
@@ -367,6 +375,28 @@ if __name__ == '__main__':
 
   centers_all_ev, amps_all_ev, recodata_all_ev, tot_events = AllCentersAllEvents(selectedEvents, pickles)
 
+  all_max_amps = []
+  all_amps = []
+  for i, amps in enumerate(amps_all_ev):
+    if len(amps) != 0:
+      for amp in amps:
+  #     fig = plt.figure()
+  #     plt.hist(amps, 100)
+  #     plt.xlabel("score")
+  #     plt.ylabel("n entries")
+  #     plt.title(f"Photon score in event {tot_events[i]}")
+  # plt.show()
+        all_amps.append(amp)
+      # max_amp = max(amps)
+      # all_max_amps.append(max_amp)
+  # print("mean max: ", np.average(all_max_amps))
+  
+  plt.hist(all_amps, 200)
+  plt.xlabel("score")
+  plt.ylabel("n entries")
+  plt.title("Photon score in all events")
+  #plt.show()
+
   #************************MC TRUTH**************************
   all_true_vertices, all_true_directions, ev_numbers = ExtractTrueParameters(edepsim_files, selectedEvents)
   # print("---------------------MC TRUTH-------------------------")
@@ -385,6 +415,7 @@ if __name__ == '__main__':
   ### DIRECTIONS
   all_thetas = []
   all_angles = []
+  selected_true_directions = []
 
   cluster_countsZY = []
   cluster_countsZX = []
@@ -464,15 +495,15 @@ if __name__ == '__main__':
     """condition for two tracks in both planes"""
     if len(all_collinear_pointsZX) == 2 and len(all_collinear_pointsZY) == 2:
       twoPlanes2Tracks += 1
-      if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
+      #if (all_collinear_pointsZY[0] != [] and all_collinear_pointsZX[0] != []) and (all_collinear_pointsZY[1] != [] and all_collinear_pointsZX[1] != []):
         #twoPlanes2Tracks += 1
-        twoPlanes2Tracks_true_vertices.append(all_true_vertices[i])
-        #twoPlanes2Tracks_true_directions.append(all_true_directions[i])
-        twoPlanes2Tracks_true_events.append(ev_numbers[i])
-        print("---------------------------RECO-----------------------------")
-        reco_vertex = GetRecoVertex(all_collinear_pointsZX)
-        print("RECO vertex 2planes2tracks: ", reco_vertex)
-        twoPlanes2Tracks_reco_vertices.append(reco_vertex)
+      twoPlanes2Tracks_true_vertices.append(all_true_vertices[i])
+      #twoPlanes2Tracks_true_directions.append(all_true_directions[i])
+      twoPlanes2Tracks_true_events.append(ev_numbers[i])
+      print("---------------------------RECO-----------------------------")
+      reco_vertex = GetRecoVertex(all_collinear_pointsZX)
+      print("RECO vertex 2planes2tracks: ", reco_vertex)
+      twoPlanes2Tracks_reco_vertices.append(reco_vertex)
 
     """condition for two tracks in plane zx or zy: true and reco"""
     if len(all_collinear_pointsZX) == 2 and (len(all_collinear_pointsZY) == 0 or len(all_collinear_pointsZY) == 1): 
@@ -498,7 +529,18 @@ if __name__ == '__main__':
 
     """RECO DIRECTION"""
     all_reco_directions = []
-    reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
+    if len(all_collinear_pointsZY) == 2 and len(all_collinear_pointsZX) == 1:
+      reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
+      selected_true_directions.append(all_true_directions[i])
+    elif len(all_collinear_pointsZY) == 1 and len(all_collinear_pointsZX) == 2:
+      reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZX)
+      selected_true_directions.append(all_true_directions[i])
+    elif len(all_collinear_pointsZY) == 2 and len(all_collinear_pointsZX) == 2:
+      reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
+      selected_true_directions.append(all_true_directions[i])
+    elif len(all_collinear_pointsZY) == 1 and len(all_collinear_pointsZX) == 1:
+      reco_directions = GetRecoDirections(reco_vertex, all_collinear_pointsZY)
+      selected_true_directions.append(all_true_directions[i])
     print("RECO directions: ", reco_directions)
 
     """ANGLE"""
@@ -651,8 +693,10 @@ if __name__ == '__main__':
     for angle in theta_arr:
       all_angles.append(angle)
 
-  twoPlanes2Tracks_true_vertices.append(onePlane2Tracks_true_vertices)
-  twoPlanes2Tracks_reco_vertices.append(onePlane2Tracks_reco_vertices)
+  for i in range(len(onePlane2Tracks_reco_vertices)):
+    twoPlanes2Tracks_true_vertices.append(onePlane2Tracks_true_vertices[i])
+    twoPlanes2Tracks_reco_vertices.append(onePlane2Tracks_reco_vertices[i])
+  print("ev 2 tracce almeno in un piano: ", len(twoPlanes2Tracks_reco_vertices))
 
   # print("quanti cluster ZX: ", cluster_countsZX)
   # print("quanti cluster ZY: ", cluster_countsZY)
