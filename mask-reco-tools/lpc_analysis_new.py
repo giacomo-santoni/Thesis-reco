@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 from sklearn.cluster import DBSCAN
 import scipy as scp
 import skimage as sk
+import kneed as kn
+from sklearn.neighbors import NearestNeighbors
+import sys
 
 import clusterclass
 from recodisplay import load_pickle
@@ -80,7 +83,29 @@ def AllCentersAllEvents(events, file_list):
   return centers_all_ev, amps_all_ev, recodata_all_ev, tot_events
 
 def Clustering(centers, amps):
-  db_algo = DBSCAN(eps = all_parameters["epsilon"], min_samples = all_parameters["min_points"])
+  # all_eps = []
+  # # Calculate NN
+  # nearest_neighbors = NearestNeighbors(n_neighbors=6)
+  # neighbors = nearest_neighbors.fit(centers)
+  # distances, indices = neighbors.kneighbors(centers)
+  # distances = np.sort(distances, axis=0)
+  # # Get distances
+  # distances = distances[:,1]
+  # i = np.arange(len(distances))
+  # # sns.lineplot(x = i, y = distances)
+  # # plt.xlabel("Points")
+  # # plt.ylabel("Distance")
+  # #plt.show()
+  # kneedle = kn.KneeLocator(x = range(1, len(distances)+1), y = distances, S = 1.0, 
+  #                   curve = "concave", direction = "increasing", online=True)
+  # # get the estimate of knee point
+  # epsilon = kneedle.knee_y
+  # print("EPSILON: ", epsilon)
+  # kneedle.plot_knee()
+  # all_eps.append(epsilon)
+  # #plt.show()
+
+  db_algo = DBSCAN(eps = 36, min_samples = all_parameters["min_points"])
   y_pred = db_algo.fit_predict(centers)
   labels = np.unique(y_pred)
 
@@ -751,22 +776,35 @@ if __name__ == '__main__':
   for i, c in enumerate(coord):
     print(f"---RECO VERTEX {c}---")
     diff_vertices = VertexCoordinatesHisto(twoPlanes2Tracks_true_vertices, twoPlanes2Tracks_reco_vertices, i)
+    stand_dev = np.std(diff_vertices)
+    print(f"{c} std dev: ", stand_dev)
     fig = plt.figure()
     plt.xlabel(f"{c} reco - {c} true")
     plt.ylabel("n entries")
-    n, bins, patches = plt.hist(diff_vertices, 50, (-100,100), histtype='step')
+    n, bins, patches = plt.hist(diff_vertices, 20, (-100,100), histtype='step')
+    bin_centers = (bins[:-1] + bins[1:]) / 2
+
+    original_stdout = sys.stdout
+
+    with open(f'./{c} coordinate', 'a') as f:
+      sys.stdout = f 
+      for i, bin in enumerate(bin_centers):
+        print(bin, n[i],'\n')
+      sys.stdout = original_stdout 
+      f.close()
     
     #fit the histo
     xmin, xmax = plt.xlim()
     x = np.linspace(xmin, xmax, len(n))
-    popt, pcov = scp.optimize.curve_fit(gauss, x, n, p0 = [10, 0, 5])
+    x_gauss = np.linspace(xmin, xmax, 50)
+    popt, pcov = scp.optimize.curve_fit(gauss, x, n, p0 = [65, 0, 30])
     amp, mu, sigma = popt
     amp_err, mu_err, sigma_err = np.diagonal(pcov)
     chi_square, p_value = scp.stats.chisquare(n)
     print("vertex coord chi square: ", chi_square, p_value)
     print(f"{c} mu + mu_err:", popt[1], pcov[1][1])
     print(f"{c} std + std_err: ", popt[2], pcov[2][2])
-    plt.plot(x, gauss(x,*popt), color = 'red')
+    plt.plot(x_gauss, gauss(x_gauss,*popt), color = 'red')
     
     fit_info = f'Entries: {len(diff_vertices)}\nConst: {amp:.2f}±{amp_err:.2f}\nMean: {mu:.2f}±{mu_err:.2f}\nSigma: {sigma:.2f}±{sigma_err:.2f}'
     # plt.text(0.95, 0.95, f"      Vertex {c}     ",
@@ -785,12 +823,12 @@ if __name__ == '__main__':
   distance_vertices = DistanceRecoTrueVertex(twoPlanes2Tracks_true_vertices, twoPlanes2Tracks_reco_vertices)
   plt.xlabel(f"distance reco - true vertex")
   plt.ylabel("n entries")
-  n3, bins3, _ = plt.hist(distance_vertices, 50, (0,200), histtype='step')
+  n3, bins3, _ = plt.hist(distance_vertices, 20, (0,200), histtype='step')
   
   #fit the histo
   # xmin3, xmax3 = plt.xlim()
   # x3 = np.linspace(xmin3, xmax3, len(n3))
-  # popt3, pcov3 = scp.optimize.curve_fit(gauss, x3, n3, p0 = [10, 20, 10])
+  # popt3, pcov3 = scp.optimize.curve_fit(gauss, x3, n3, p0 = [, 20, 10])
   # amp3, mu3, sigma3 = popt3
   # amp3_err, mu3_err, sigma3_err = np.diagonal(pcov3)
   # chi_square3, p_value3 = scp.stats.chisquare(n3)
@@ -810,22 +848,36 @@ if __name__ == '__main__':
 
   ############ANGLE###################
   print("---RECO ANGLE---")
+  stand_dev_angle = np.std(all_angles)
+  print("std dev angles: ", stand_dev_angle)
   fig6 = plt.figure()
-  n2, bins2, _ = plt.hist(all_angles, 50, (-90,90), histtype='step')
+  n2, bins2, _ = plt.hist(all_angles, 20, (-90,90), histtype='step')
   plt.xlabel("angle between reco and MC track ($^\circ$)")
   plt.ylabel("n entries")
+  bin_centers2 = (bins2[:-1] + bins2[1:]) / 2
+
+  original_stdout = sys.stdout
+
+  with open('./angle', 'a') as f:
+    sys.stdout = f 
+    for i, bin in enumerate(bin_centers2):
+      print(bin, n2[i],'\n')
+    sys.stdout = original_stdout 
+    f.close()
+
   #fit the histo
   xmin2, xmax2 = plt.xlim()
   x2 = np.linspace(-75, 75, len(n2))
+  x_gauss2 = np.linspace(xmin2, xmax2, 50)
   #y = n
-  popt2, pcov2 = scp.optimize.curve_fit(gauss, x2, n2, p0 = [60, 0, 5])
+  popt2, pcov2 = scp.optimize.curve_fit(gauss, x2, n2, p0 = [170, 0, 30])
   amp2, mu2, sigma2 = popt2
   amp2_err, mu2_err, sigma2_err = np.diagonal(pcov2)
   chi_square2, p_value2 = scp.stats.chisquare(n2)
   print("angle chi square: ", chi_square2, p_value2)
   print("angle mu + mu_err:", popt2[1], pcov2[1][1])
   print("angle std + std_err: ", popt2[2], pcov2[2][2])
-  plt.plot(x2, gauss(x2,*popt2), color = 'red')
+  plt.plot(x_gauss2, gauss(x_gauss2,*popt2), color = 'red')
 
   fit_info = f'Entries: {len(all_angles)}\nConst: {amp2:.2f}±{amp2_err:.2f}\nMean: {mu2:.2f}±{mu2_err:.2f}\nSigma: {sigma2:.2f}±{sigma2_err:.2f}'
   # plt.text(0.95, 0.95, "     angle      ",
@@ -861,9 +913,11 @@ if __name__ == '__main__':
     final_distZY.append(dist)
 
   fig11 = plt.figure()
+  ymin1, ymax1 = plt.ylim()
   plt.hist(final_distZY, 100, histtype='step')
-  plt.xlabel("distance lpc point from the closest hough line (mm)")
-  plt.ylabel("n entries")
+  plt.axvline(45, ymin= ymin1, ymax= ymax1, color = 'red')
+  plt.xlabel("distance lpc point from the closest hough line (mm)", fontsize = 11)
+  plt.ylabel("n entries", fontsize = 11)
   plt.title("both planes")
 
   plt.show()
